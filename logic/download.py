@@ -4,7 +4,7 @@ import yt_dlp
 from .ffmpeg_utils import load_ffmpeg
 from urllib.parse import urlparse, parse_qs
 from PyQt6.QtCore import QThread, pyqtSignal
-from .temp_utils import get_temp_path
+from .temp_utils import get_temp_path, get_resource_path
 from pathlib import Path
 
 def download_video(url, quality, playlist, output_path : Path, hook):
@@ -17,7 +17,7 @@ def download_video(url, quality, playlist, output_path : Path, hook):
         "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
     }
     ffmpeg_path = load_ffmpeg()
-
+    print(ffmpeg_path)
     format_string = QUALITY_MAP.get(quality)
 
     prefix = "_%(playlist_index)s_ - " if playlist else ""
@@ -30,6 +30,11 @@ def download_video(url, quality, playlist, output_path : Path, hook):
         'ffmpeg_location' : str(ffmpeg_path),
         'progress_hooks': hook,
         'quiet': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android_sdkless', 'web'],
+            }
+        }
     }
 
     query = urlparse(url).query

@@ -1,20 +1,8 @@
 #!/bin/bash
+#todo: change to powershell
 
 rm -rf dist build
 
-pyinstaller \
-    --onefile \
-    --noupx \
-    --paths=. \
-    \
-    --add-binary ".binaries/ffmpeg:.binaries" \
-    \
-    --collect-all torch \
-    --collect-all torchcodec \
-    --copy-metadata torch \
-    --copy-metadata torchcodec \
-    \
-    --add-data ".models:.models" \
-    GUI/app.py
+pyinstaller --onefile --noupx --paths=. --add-binary ".binaries/ffmpeg.exe;.binaries" --add-binary ".binaries/ffprobe.exe;.binaries" --collect-all torch --copy-metadata torch --add-data ".models:.models" app.py
 
 ./dist/app

@@ -1,15 +1,13 @@
+from pathlib import Path
 import sys
-
 from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QFileDialog
-from main import Ui_MainWindow
-from dialog import Ui_linkDialog
+from GUI.main import Ui_MainWindow
+from GUI.dialog import Ui_linkDialog
 from logic.download import DownloadThread
 from logic.demucs_utils import MusicRemoverThread
 from logic.temp_utils import get_temp_path
 import shutil
-from pathlib import Path
 
-#TODO: Move to root
 #TODO: ADD HELP
 #TODO : ADD TRANSLATION
 #TODO: add gpu accel

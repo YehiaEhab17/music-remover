@@ -1,12 +1,10 @@
-from dotenv import load_dotenv
 import os
 import subprocess
 from pathlib import Path
 from .temp_utils import get_resource_path
 
-load_dotenv()
 def load_ffmpeg():
-    return get_resource_path(os.getenv("FFMPEG_PATH"))
+    return get_resource_path(".binaries/ffmpeg.exe")
 
 
 def split_video(input_video : Path, output_audio : Path,  output_video : Path):
@@ -45,6 +43,7 @@ def combine_video(input_audio : Path, input_video : Path, output_dir : Path):
 
     command = [
         str(ffmpeg_path),
+        "-y",
         "-i", str(input_video),
         "-i", str(input_audio),
         "-c:v", "copy",

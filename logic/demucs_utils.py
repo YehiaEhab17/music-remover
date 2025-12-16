@@ -1,4 +1,5 @@
 import shutil
+import os
 
 import demucs.separate
 from pathlib import Path
@@ -6,6 +7,8 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from demucs.hdemucs import HDemucs
 import torch.serialization
 from .temp_utils import get_temp_path, get_resource_path
+
+
 
 torch.serialization.add_safe_globals([HDemucs])
 
@@ -38,6 +41,7 @@ class MusicRemoverThread(QThread):
 			model_path = get_resource_path(".models")
 
 			cmd = [
+				"--mp3",
 				"--two-stems=vocals",
 				"--repo", str(model_path),
 				"-n", ".model",
@@ -61,7 +65,7 @@ class MusicRemoverThread(QThread):
 			output_audio.unlink()
 
 			child_dir = next((output_dir / ".model").iterdir())
-			final_audio = child_dir / "vocals.wav"
+			final_audio = child_dir / "vocals.mp3"
 
 			from logic.ffmpeg_utils import combine_video
 
