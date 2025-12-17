@@ -1,13 +1,11 @@
-import shutil
+import os
+os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
 
 import demucs.separate
 from pathlib import Path
 from PyQt6.QtCore import QThread, pyqtSignal
-from demucs.hdemucs import HDemucs
-import torch.serialization
 from .temp_utils import get_temp_path, get_resource_path
 
-torch.serialization.add_safe_globals([HDemucs])
 
 class MusicRemoverThread(QThread):
 	progress = pyqtSignal(str)  # for status updates
@@ -37,14 +35,14 @@ class MusicRemoverThread(QThread):
 
 			model_path = get_resource_path(".models")
 
+			model_name = "htdemucs"
+
 			cmd = [
-				"--two-stems=vocals",
-				"--repo", str(model_path),
-				"-n", ".model",
-				"--segment", "8",
+				"-n", model_name,
 				str(output_audio),
-				"-o", str(output_dir)
+				"-o", str(output_dir),
 			]
+
 			try:
 				demucs.separate.main(cmd)
 
@@ -60,14 +58,14 @@ class MusicRemoverThread(QThread):
 
 			output_audio.unlink()
 
-			child_dir = next((output_dir / ".model").iterdir())
+			child_dir = next((output_dir / model_name).iterdir())
 			final_audio = child_dir / "vocals.wav"
 
 			from logic.ffmpeg_utils import combine_video
 
 			self.progress.emit(f"Combining {self.input_video}")
 			combine_video(final_audio, output_video, self.user_output)
-			self.progress.emit(f"Finished Combining {self.input_video}")
+			self.progress.emit(f"Finished Combining {final_audio} and {output_video} to {self.user_output}")
 
 			self.completed.emit(True)
 

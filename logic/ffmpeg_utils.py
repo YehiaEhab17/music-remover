@@ -17,6 +17,8 @@ def split_video(input_video : Path, output_audio : Path,  output_video : Path):
         "-y",
         "-i", str(input_video),
         "-vn",
+        "-ar", "44100",
+        "-ac", "2",
         "-acodec", "pcm_s16le",
         str(output_audio),
     ]
@@ -45,11 +47,13 @@ def combine_video(input_audio : Path, input_video : Path, output_dir : Path):
 
     command = [
         str(ffmpeg_path),
+        "-y",
         "-i", str(input_video),
         "-i", str(input_audio),
         "-c:v", "copy",
         "-c:a", "aac",
         "-b:a", "192k",
+        "-af", "highpass=f=100, lowpass=f=12000",
         str(output_video),
     ]
 

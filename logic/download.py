@@ -9,13 +9,14 @@ from pathlib import Path
 
 def download_video(url, quality, playlist, output_path : Path, hook):
     QUALITY_MAP = {
-        "144p": "bestvideo[height<=144]+bestaudio/best[height<=144]",
-        "240p": "bestvideo[height<=240]+bestaudio/best[height<=240]",
-        "360p": "bestvideo[height<=360]+bestaudio/best[height<=360]",
-        "480p": "bestvideo[height<=480]+bestaudio/best[height<=480]",
-        "720p": "bestvideo[height<=720]+bestaudio/best[height<=720]",
-        "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+        "144p": "bestvideo[height<=144]+bestaudio/best",
+        "240p": "bestvideo[height<=240]+bestaudio/best",
+        "360p": "bestvideo[height<=360]+bestaudio/best",
+        "480p": "bestvideo[height<=480]+bestaudio/best",
+        "720p": "bestvideo[height<=720]+bestaudio/best",
+        "1080p": "bestvideo[height<=1080]+bestaudio/best",
     }
+
     ffmpeg_path = load_ffmpeg()
 
     format_string = QUALITY_MAP.get(quality)
@@ -30,6 +31,11 @@ def download_video(url, quality, playlist, output_path : Path, hook):
         'ffmpeg_location' : str(ffmpeg_path),
         'progress_hooks': hook,
         'quiet': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android_sdkless', 'web'],
+            }
+        }
     }
 
     query = urlparse(url).query
