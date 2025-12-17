@@ -1,13 +1,13 @@
-
+from pathlib import Path
+from urllib.parse import urlparse, parse_qs
 
 import yt_dlp
-from .ffmpeg_utils import load_ffmpeg
-from urllib.parse import urlparse, parse_qs
-from PyQt6.QtCore import QThread, pyqtSignal
-from .temp_utils import get_temp_path
-from pathlib import Path
+from PyQt6.QtCore import QThread, pyqtSignal, pyqtBoundSignal
 
-def download_video(url, quality, playlist, output_path : Path, hook):
+from .temp_utils import get_temp_path
+
+
+def download_video(url: str, quality: str, playlist: bool, output_path: Path, hook: list[callable]) -> list[Path]:
     QUALITY_MAP = {
         "144p": "bestvideo[height<=144]+bestaudio/best",
         "240p": "bestvideo[height<=240]+bestaudio/best",
@@ -16,9 +16,6 @@ def download_video(url, quality, playlist, output_path : Path, hook):
         "720p": "bestvideo[height<=720]+bestaudio/best",
         "1080p": "bestvideo[height<=1080]+bestaudio/best",
     }
-
-    ffmpeg_path = load_ffmpeg()
-
     format_string = QUALITY_MAP.get(quality)
 
     prefix = "_%(playlist_index)s_ - " if playlist else ""
@@ -28,7 +25,6 @@ def download_video(url, quality, playlist, output_path : Path, hook):
         'format': format_string,
         'outtmpl': output_template,
         'merge_output_format': 'mp4',  # ensures audio+video merges as mp4
-        'ffmpeg_location' : str(ffmpeg_path),
         'progress_hooks': hook,
         'quiet': True,
         'extractor_args': {
@@ -47,7 +43,7 @@ def download_video(url, quality, playlist, output_path : Path, hook):
         video_index = params.get("index", ["1"])[0]
         ydl_opts["playlist_items"] = video_index
 
-    downloaded_files = []
+    downloaded_files: list[Path] = []
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)  # extract info AND download
@@ -64,23 +60,22 @@ def download_video(url, quality, playlist, output_path : Path, hook):
 
 
 class DownloadThread(QThread):
-    progress = pyqtSignal(str)  # for status updates
-    progress_percent = pyqtSignal(float) # for the progress bar
-    error = pyqtSignal(str) # for errors
-    output = pyqtSignal(list) # paths of downloaded files
+    progress: pyqtBoundSignal = pyqtSignal(str)  # for status updates
+    progress_percent: pyqtBoundSignal = pyqtSignal(float)  # for the progress bar
+    error: pyqtBoundSignal = pyqtSignal(str)  # for errors
+    output: pyqtBoundSignal = pyqtSignal(list)  # paths of downloaded files
 
-    def __init__(self, link, quality, playlist, remove, user_output):
+    def __init__(self, url: str, quality: str, playlist: bool, remove: bool, user_output: Path) -> None:
         super().__init__()
-        self.link = link        # store the video link
-        self.quality = quality  # store the selected quality
-        self.playlist = playlist # store whether we are downloading a playlist or not
-        self.remove = remove # whether to remove music or just download
+        self.url = url
+        self.quality = quality
+        self.playlist = playlist
+        self.remove = remove  # whether to remove music or just download
         self.user_output = user_output
 
-    def run(self):
-        def hook(d): # hooks to ytdlp to get status updates, d is a dictionary
+    def run(self) -> None:
+        def hook(d):  # hooks to ytdlp to get status updates, d is a dictionary
             if d['status'] == 'downloading':
-
                 downloaded = d.get("downloaded_bytes", 0)
                 total = d.get("total_bytes", 0)
 
@@ -91,19 +86,15 @@ class DownloadThread(QThread):
 
                 self.progress_percent.emit(percent)
 
-        # this method executes when the thread starts
         try:
             output_path = get_temp_path() if self.remove else self.user_output
-            self.progress.emit(f"Downloading {self.link}")
-            file_paths = download_video(self.link, self.quality, self.playlist, output_path, [hook])    # call your existing download function
-            self.progress.emit(f"Finished downloading: {self.link}")  # send a message back to GUI
+
+            self.progress.emit(f"Downloading {self.url}")
+            file_paths = download_video(self.url, self.quality, self.playlist, output_path, [hook])
+            self.progress.emit(f"Finished downloading: {self.url}")
+
             if self.remove:
                 self.output.emit(file_paths)
 
-
         except Exception as e:
             self.error.emit("error message while downloading: " + str(e))
-
-
-
-

@@ -1,19 +1,11 @@
-from dotenv import load_dotenv
-import os
 import subprocess
 from pathlib import Path
-from .temp_utils import get_resource_path
-
-load_dotenv()
-def load_ffmpeg():
-    return get_resource_path(os.getenv("FFMPEG_PATH"))
 
 
-def split_video(input_video : Path, output_audio : Path,  output_video : Path):
-    ffmpeg_path = load_ffmpeg()
+def split_video(input_video: Path, output_audio: Path, output_video: Path) -> None:
 
     audio_command = [
-        str(ffmpeg_path),
+        "ffmpeg"
         "-y",
         "-i", str(input_video),
         "-vn",
@@ -24,7 +16,7 @@ def split_video(input_video : Path, output_audio : Path,  output_video : Path):
     ]
 
     video_command = [
-        str(ffmpeg_path),
+        "ffmpeg",
         "-y",
         "-i", str(input_video),
         "-an",
@@ -40,20 +32,18 @@ def split_video(input_video : Path, output_audio : Path,  output_video : Path):
         raise
 
 
-def combine_video(input_audio : Path, input_video : Path, output_dir : Path):
-    ffmpeg_path = load_ffmpeg()
-
-    output_video = output_dir / input_video.name
+def combine_video(input_audio: Path, input_video: Path, output_dir: Path) -> Path:
+    output_video: Path = output_dir / input_video.name
 
     command = [
-        str(ffmpeg_path),
+        "ffmpeg",
         "-y",
         "-i", str(input_video),
         "-i", str(input_audio),
         "-c:v", "copy",
         "-c:a", "aac",
         "-b:a", "192k",
-        "-af", "highpass=f=100, lowpass=f=12000",
+        "-af", "highpass=f=100, lowpass=f=9000",
         str(output_video),
     ]
 
@@ -62,4 +52,3 @@ def combine_video(input_audio : Path, input_video : Path, output_dir : Path):
     except subprocess.CalledProcessError as e:
         print("FFmpeg failed:", e.stderr)
         raise
-
