@@ -1,17 +1,19 @@
 import subprocess
 from pathlib import Path
 
+import config
+
 
 def split_video(input_video: Path, output_audio: Path, output_video: Path) -> None:
 
     audio_command = [
-        "ffmpeg"
+        "ffmpeg",
         "-y",
         "-i", str(input_video),
         "-vn",
-        "-ar", "44100",
-        "-ac", "2",
-        "-acodec", "pcm_s16le",
+        "-ar", config.AUDIO_SETTINGS["sample_rate"],
+        "-ac", config.AUDIO_SETTINGS["channels"],
+        "-acodec", config.AUDIO_SETTINGS["codec"],
         str(output_audio),
     ]
 
@@ -42,8 +44,8 @@ def combine_video(input_audio: Path, input_video: Path, output_dir: Path) -> Pat
         "-i", str(input_audio),
         "-c:v", "copy",
         "-c:a", "aac",
-        "-b:a", "192k",
-        "-af", "highpass=f=100, lowpass=f=9000",
+        "-b:a", config.AUDIO_SETTINGS["output_bitrate"],
+        "-af", f"highpass=f={config.AUDIO_SETTINGS['highpass_freq']}, lowpass=f={config.AUDIO_SETTINGS['lowpass_freq']}",
         str(output_video),
     ]
 

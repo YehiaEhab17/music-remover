@@ -1,22 +1,16 @@
 from pathlib import Path
+from typing import Callable
 from urllib.parse import urlparse, parse_qs
 
 import yt_dlp
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtBoundSignal
 
-from .temp_utils import get_temp_path
+import config
+from .utils import get_temp_path, get_error_message
 
 
-def download_video(url: str, quality: str, playlist: bool, output_path: Path, hook: list[callable]) -> list[Path]:
-    QUALITY_MAP = {
-        "144p": "bestvideo[height<=144]+bestaudio/best",
-        "240p": "bestvideo[height<=240]+bestaudio/best",
-        "360p": "bestvideo[height<=360]+bestaudio/best",
-        "480p": "bestvideo[height<=480]+bestaudio/best",
-        "720p": "bestvideo[height<=720]+bestaudio/best",
-        "1080p": "bestvideo[height<=1080]+bestaudio/best",
-    }
-    format_string = QUALITY_MAP.get(quality)
+def download_video(url: str, quality: str, playlist: bool, output_path: Path, hook: list[Callable]) -> list[Path]:
+    format_string = config.QUALITY_SETTINGS.get(quality)
 
     prefix = "_%(playlist_index)s_ - " if playlist else ""
     output_template = str(output_path / f'{prefix}%(title)s.%(ext)s')
@@ -24,12 +18,12 @@ def download_video(url: str, quality: str, playlist: bool, output_path: Path, ho
     ydl_opts = {
         'format': format_string,
         'outtmpl': output_template,
-        'merge_output_format': 'mp4',  # ensures audio+video merges as mp4
+        'merge_output_format': config.DEFAULT_OUTPUT_FORMAT,
         'progress_hooks': hook,
         'quiet': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android_sdkless', 'web'],
+                'player_client': config.YOUTUBE_CLIENTS,
             }
         }
     }
@@ -46,13 +40,14 @@ def download_video(url: str, quality: str, playlist: bool, output_path: Path, ho
     downloaded_files: list[Path] = []
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)  # extract info AND download
 
-        # Determine the list of downloaded items (either the single info dict, or the list of entries)
-        # We wrap the single item in a list for uniform processing.
+        try:
+            info = ydl.extract_info(url, download=True)
+        except Exception as e:
+            error_message = get_error_message(str(e))
+            raise ValueError(error_message)
+
         downloaded_items = info.get('entries', [info])
-
-        # Iterate over the list of items to get the absolute path for each downloaded file
         for item in downloaded_items:
             downloaded_files.append(Path(ydl.prepare_filename(item)).resolve())
 

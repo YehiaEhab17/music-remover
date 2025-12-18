@@ -4,7 +4,8 @@ from pathlib import Path
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtBoundSignal
 from audio_separator.separator import Separator
 
-from .temp_utils import get_temp_path
+import config
+from .utils import get_temp_path
 
 
 class MusicRemoverThread(QThread):
@@ -33,7 +34,7 @@ class MusicRemoverThread(QThread):
             self.progress.emit(f"Finished Splitting {self.input_video}")
 
             separator: Separator = Separator(output_dir=str(output_dir))
-            separator.load_model("UVR-MDX-NET-Voc_FT.onnx")
+            separator.load_model(config.DEFAULT_MODEL)
 
             output_files: list[str] = separator.separate(str(output_audio))
             output_audio.unlink()

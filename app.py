@@ -2,6 +2,9 @@ import sys
 import shutil
 from pathlib import Path
 
+import threading
+threading.Thread.isAlive = threading.Thread.is_alive
+
 from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QFileDialog
 
 from GUI.main import Ui_MainWindow
@@ -9,7 +12,7 @@ from GUI.dialog import Ui_linkDialog
 
 from logic.download_utils import DownloadThread
 from logic.music_removal import MusicRemoverThread
-from logic.temp_utils import get_temp_path
+from logic.utils import get_temp_path, validate_output_directory
 
 
 # TODO: ADD HELP
@@ -22,6 +25,9 @@ class MyWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.setFixedSize(self.size())
+
+        self.download_thread = None
+        self.music_remover_thread = None
 
         self.ui.start_button.clicked.connect(self.open_dialog)
         self.ui.output_directory_button.clicked.connect(self.choose_output_directory)
@@ -37,12 +43,23 @@ class MyWindow(QMainWindow):
         self.ui.output_directory_button.setEnabled(status)
 
     def remove_music(self, paths: list[Path]) -> None:
+        if self.download_thread and self.download_thread.isRunning():
+            self.download_thread.quit()
+
         self.music_remover_threads = iter(paths)
         self.start_next_thread()
 
     def choose_output_directory(self) -> None:
-        self.user_output = Path(QFileDialog.getExistingDirectory(self, "Choose an output path"))
-        self.ui.output_directory_label.setText(str(self.user_output))
+        directory = QFileDialog.getExistingDirectory(self, "Choose an output path")
+        if not directory:
+            print("please enter a valid directory")
+
+        is_writable, message = validate_output_directory(Path(directory))
+        if not is_writable:
+            print(message)
+        else:
+            self.user_output = Path(directory)
+            self.ui.output_directory_label.setText(str(self.user_output))
 
     def open_dialog(self) -> None:
         self.set_input_enabled(False)
@@ -90,6 +107,11 @@ class MyWindow(QMainWindow):
     def start_next_thread(self) -> None:
         try:
             path = next(self.music_remover_threads)
+
+            if self.music_remover_thread and self.music_remover_thread.isRunning():
+                self.music_remover_thread.quit()
+                self.music_remover_thread.wait()
+
             self.music_remover_thread = MusicRemoverThread(path, self.user_output)
 
             self.music_remover_thread.completed.connect(self.start_next_thread)
@@ -99,6 +121,7 @@ class MyWindow(QMainWindow):
             self.music_remover_thread.error.connect(lambda msg: print("Error:", msg))
             # TODO: make it output to status box
             self.music_remover_thread.start()
+
 
         except StopIteration:
             print("All files processed")
