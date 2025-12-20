@@ -209,3 +209,8 @@ __marimo__/
 # custom
 .idea
 .music_remover_temp
+.binaries/*
+misc/AGENTS.md
+*.mp4
+*.mp3
+*.wav

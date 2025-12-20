@@ -1,30 +1,27 @@
-from dotenv import load_dotenv
-import os
 import subprocess
 from pathlib import Path
-from .temp_utils import get_resource_path
 
-load_dotenv()
-def load_ffmpeg():
-    return get_resource_path(os.getenv("FFMPEG_PATH"))
+import config
+from .utils import get_error_message
 
 
-def split_video(input_video : Path, output_audio : Path,  output_video : Path):
-    ffmpeg_path = load_ffmpeg()
+def split_video(input_video: Path, output_audio: Path, output_video: Path) -> None:
 
     audio_command = [
-        str(ffmpeg_path),
+        "ffmpeg",
+        "-v", "error",
         "-y",
         "-i", str(input_video),
         "-vn",
-        "-ar", "44100",
-        "-ac", "2",
-        "-acodec", "pcm_s16le",
+        "-ar", config.AUDIO_SETTINGS["sample_rate"],
+        "-ac", config.AUDIO_SETTINGS["channels"],
+        "-acodec", config.AUDIO_SETTINGS["codec"],
         str(output_audio),
     ]
 
     video_command = [
-        str(ffmpeg_path),
+        "ffmpeg",
+        "-v", "error",
         "-y",
         "-i", str(input_video),
         "-an",
@@ -36,30 +33,29 @@ def split_video(input_video : Path, output_audio : Path,  output_video : Path):
         subprocess.run(audio_command, check=True, capture_output=True, text=True)
         subprocess.run(video_command, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        print("FFmpeg failed:", e.stderr)
-        raise
+        error_message = get_error_message(e.stderr)
+        raise RuntimeError(error_message) from e
 
 
-def combine_video(input_audio : Path, input_video : Path, output_dir : Path):
-    ffmpeg_path = load_ffmpeg()
+def combine_video(input_audio: Path, input_video: Path, output_dir: Path) -> None:
+    output_video: Path = output_dir / input_video.name
 
-    output_video = output_dir / input_video.name
-
+    # noinspection PyPep8
     command = [
-        str(ffmpeg_path),
+        "ffmpeg",
+        "-v", "error",
         "-y",
         "-i", str(input_video),
         "-i", str(input_audio),
         "-c:v", "copy",
         "-c:a", "aac",
-        "-b:a", "192k",
-        "-af", "highpass=f=100, lowpass=f=12000",
+        "-b:a", config.AUDIO_SETTINGS["output_bitrate"],
+        "-af", f"highpass=f={config.AUDIO_SETTINGS['highpass_freq']}, lowpass=f={config.AUDIO_SETTINGS['lowpass_freq']}",
         str(output_video),
     ]
 
     try:
         subprocess.run(command, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        print("FFmpeg failed:", e.stderr)
-        raise
-
+        error_message = get_error_message(str(e))
+        raise ValueError(error_message)
