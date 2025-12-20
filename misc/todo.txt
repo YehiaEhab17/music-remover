@@ -1,7 +1,7 @@
 # Music Remover - TODO List
 
 ## Critical Issues (Fix Now)
-
+- [ ] Clean venv
 ## Core Functionality Improvements
 
 ### Logging System
