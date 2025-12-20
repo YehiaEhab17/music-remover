@@ -209,3 +209,5 @@ __marimo__/
 # custom
 .idea
 .music_remover_temp
+.binaries/ffmpeg
+.binaries/ffmpeg.exe

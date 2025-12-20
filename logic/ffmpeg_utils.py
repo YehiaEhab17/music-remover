@@ -2,12 +2,14 @@ import subprocess
 from pathlib import Path
 
 import config
+from .utils import get_error_message
 
 
 def split_video(input_video: Path, output_audio: Path, output_video: Path) -> None:
 
     audio_command = [
         "ffmpeg",
+        "-v", "error",
         "-y",
         "-i", str(input_video),
         "-vn",
@@ -19,6 +21,7 @@ def split_video(input_video: Path, output_audio: Path, output_video: Path) -> No
 
     video_command = [
         "ffmpeg",
+        "-v", "error",
         "-y",
         "-i", str(input_video),
         "-an",
@@ -30,15 +33,17 @@ def split_video(input_video: Path, output_audio: Path, output_video: Path) -> No
         subprocess.run(audio_command, check=True, capture_output=True, text=True)
         subprocess.run(video_command, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        print("FFmpeg failed:", e.stderr)
-        raise
+        error_message = get_error_message(e.stderr)
+        raise RuntimeError(error_message) from e
 
 
-def combine_video(input_audio: Path, input_video: Path, output_dir: Path) -> Path:
+def combine_video(input_audio: Path, input_video: Path, output_dir: Path) -> None:
     output_video: Path = output_dir / input_video.name
 
+    # noinspection PyPep8
     command = [
         "ffmpeg",
+        "-v", "error",
         "-y",
         "-i", str(input_video),
         "-i", str(input_audio),
@@ -52,5 +57,5 @@ def combine_video(input_audio: Path, input_video: Path, output_dir: Path) -> Pat
     try:
         subprocess.run(command, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        print("FFmpeg failed:", e.stderr)
-        raise
+        error_message = get_error_message(str(e))
+        raise ValueError(error_message)

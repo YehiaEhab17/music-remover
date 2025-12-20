@@ -13,7 +13,7 @@ def get_temp_path() -> Path:
 def get_resource_path(relative_path: str) -> Path:
     """Get absolute path to resource, works for dev and for PyInstaller"""
     if hasattr(sys, "_MEIPASS"):
-        base_path = Path(sys._MEIPASS)
+        base_path = Path(getattr(sys, "_MEIPASS"))
     else:
         base_path = Path.cwd()
 
@@ -43,5 +43,5 @@ def validate_output_directory(path: Path) -> tuple[bool, str]:
 
     except PermissionError:
         return False, "Permission denied: Cannot write to this directory"
-    except Exception as e:
+    except OSError as e:
         return False, f"Directory validation failed: {str(e)}"

@@ -1,63 +1,86 @@
-from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse, parse_qs
+from pathlib import Path
 
 import yt_dlp
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtBoundSignal
 
-import config
+from config import MessageType
+from config import PLAYLIST_TEMPLATE, VIDEO_TEMPLATE, DEFAULT_OUTPUT_FORMAT, YOUTUBE_CLIENTS, QUALITY_SETTINGS
 from .utils import get_temp_path, get_error_message
 
 
-def download_video(url: str, quality: str, playlist: bool, output_path: Path, hook: list[Callable]) -> list[Path]:
-    format_string = config.QUALITY_SETTINGS.get(quality)
+class LoggerOutputs:
+    def __init__(self, signal):
+        self.signal = signal
 
-    prefix = "_%(playlist_index)s_ - " if playlist else ""
-    output_template = str(output_path / f'{prefix}%(title)s.%(ext)s')
+    def error(self, msg):
+        self.signal.emit(get_error_message(msg), MessageType.WARNING)
 
-    ydl_opts = {
-        'format': format_string,
-        'outtmpl': output_template,
-        'merge_output_format': config.DEFAULT_OUTPUT_FORMAT,
-        'progress_hooks': hook,
-        'quiet': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': config.YOUTUBE_CLIENTS,
-            }
-        }
-    }
+    def warning(self, msg):
+        self.signal.emit(get_error_message(msg), MessageType.DEBUG)
 
+    def debug(self, msg):
+        self.signal.emit(msg, MessageType.DEBUG)
+
+
+def get_playlist_index(url):
     query = urlparse(url).query
     if isinstance(query, bytes):
         query = query.decode()
     params = parse_qs(query)
 
-    if not playlist and "list" in params and "v" in params:
+    if "list" in params:
         video_index = params.get("index", ["1"])[0]
-        ydl_opts["playlist_items"] = video_index
+        return video_index
 
-    downloaded_files: list[Path] = []
+
+
+def download_video(
+        url: str,
+        quality: str,
+        playlist: bool,
+        output_path: Path,
+        hook: list[Callable],
+        signal: pyqtBoundSignal
+) -> list[Path]:
+
+    format_string = QUALITY_SETTINGS.get(quality)
+    video_name = PLAYLIST_TEMPLATE if playlist else VIDEO_TEMPLATE
+    output_template = str(output_path / video_name)
+
+    ydl_opts = {
+        'format': format_string,
+        'outtmpl': output_template,
+        'merge_output_format': DEFAULT_OUTPUT_FORMAT,
+        'progress_hooks': hook,
+        'quiet': True,
+        'ignoreerrors': True,
+        "logger": LoggerOutputs(signal),
+        'extractor_args': {'youtube': {'player_client': YOUTUBE_CLIENTS, }}}
+    if not playlist:
+        ydl_opts["playlist_items"] = get_playlist_index(url)
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        entries = info.get('entries', [info]) if info else []
 
-        try:
-            info = ydl.extract_info(url, download=True)
-        except Exception as e:
-            error_message = get_error_message(str(e))
-            raise ValueError(error_message)
+        downloaded_files = [
+            Path(ydl.prepare_filename(entry)).resolve()
+            for entry in entries
+            if entry
+        ]
 
-        downloaded_items = info.get('entries', [info])
-        for item in downloaded_items:
-            downloaded_files.append(Path(ydl.prepare_filename(item)).resolve())
+    if not downloaded_files:
+        raise ValueError("No valid videos found")
 
     return downloaded_files
 
 
 class DownloadThread(QThread):
-    progress: pyqtBoundSignal = pyqtSignal(str)  # for status updates
+    progress: pyqtBoundSignal = pyqtSignal(str, MessageType)  # for status updates
     progress_percent: pyqtBoundSignal = pyqtSignal(float)  # for the progress bar
-    error: pyqtBoundSignal = pyqtSignal(str)  # for errors
+
     output: pyqtBoundSignal = pyqtSignal(list)  # paths of downloaded files
 
     def __init__(self, url: str, quality: str, playlist: bool, remove: bool, user_output: Path) -> None:
@@ -69,27 +92,31 @@ class DownloadThread(QThread):
         self.user_output = user_output
 
     def run(self) -> None:
-        def hook(d):  # hooks to ytdlp to get status updates, d is a dictionary
+        def hook(d):  # hooks to yt-dlp to get status updates, d is a dictionary
             if d['status'] == 'downloading':
                 downloaded = d.get("downloaded_bytes", 0)
                 total = d.get("total_bytes", 0)
 
-                if total:
-                    percent = (downloaded / total) * 100
-                else:
-                    percent = 0
-
+                percent = ((downloaded / total) * 100) if total else 0
+                # TODO : add eta
                 self.progress_percent.emit(percent)
+
+            elif d['status'] == 'finished':
+                video_name = Path(d.get('filename')).name
+                self.progress.emit(f"Finished Downloading: {video_name}", MessageType.PROGRESS)
 
         try:
             output_path = get_temp_path() if self.remove else self.user_output
 
-            self.progress.emit(f"Downloading {self.url}")
-            file_paths = download_video(self.url, self.quality, self.playlist, output_path, [hook])
-            self.progress.emit(f"Finished downloading: {self.url}")
+            self.progress.emit(f"Downloading {self.url}", MessageType.INFO)
+            file_paths = download_video(self.url, self.quality, self.playlist, output_path, [hook], self.progress)
+            self.progress.emit(f"Finished downloading: {self.url}", MessageType.PROGRESS)
 
             if self.remove:
                 self.output.emit(file_paths)
 
-        except Exception as e:
-            self.error.emit("error message while downloading: " + str(e))
+        except ValueError as e:
+            self.progress.emit(str(e), MessageType.ERROR)
+
+        except OSError as e:
+            self.progress.emit(f"File system error: {e}", MessageType.ERROR)

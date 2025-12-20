@@ -1,0 +1,88 @@
+# Music Remover - TODO List
+
+## Critical Issues (Fix Now)
+
+## Core Functionality Improvements
+
+### Logging System
+- [/] Implement proper logging system
+- [/] Replace print statements with logging
+- [/] Add log levels (DEBUG, INFO, WARNING, ERROR)
+- [ ] Configure log file output
+- [ ] add seperator's logging to my logging
+
+### UI Feedback System
+- [ ] Improve progress bar feedback
+- [ ] add colours to status bar
+- [ ] stop ytdlp logging twice
+
+### Progress Improvements
+- [/] Better progress reporting for download operations
+- [ ] More granular progress for music removal process
+- [ ] Overall progress tracking for multiple files
+
+## Future Enhancements
+
+### Model Flexibility
+- [ ] Make model output pattern flexible for different audio separators
+- [ ] Add configuration for different model output structures
+- [ ] Support for custom model configurations
+
+### yt-dlp Optimization - Remove Video Splitting Redundancy
+- [ ] Modify yt-dlp download to not combine video/audio automatically
+  - Remove 'merge_output_format': 'mp4' from ydl_opts in download_utils.py
+  - Let yt-dlp download video and audio as separate streams
+  - This eliminates need for split_video() function in ffmpeg_utils.py
+  - Reduces redundant processing (split → process → combine)
+- [ ] Update combine_video() function to handle flexible output formats
+  - Add parameter for output extension: combine_video(input_audio, input_video, output_dir, output_ext=None)
+  - If output_ext="mp4": combine and save as MP4 file
+  - If output_ext=None: combine and return temporary file (for music removal only)
+  - If output_ext="audio_only": return only processed audio without video
+- [ ] Update music_removal.py to use new combine_video() signature
+  - Pass output_ext=None for music removal workflow
+  - Handle temporary file cleanup appropriately
+- [ ] Update download_utils.py DownloadThread for flexible output
+  - Add output_format parameter to DownloadThread constructor
+  - Pass format to combine_video() based on user choice
+  - Update UI to allow user to choose output format (MP4 vs audio-only)
+- [ ] Remove split_video() function from ffmpeg_utils.py (no longer needed)
+  - Clean up any remaining references to split_video()
+  - Update imports and function calls throughout codebase
+
+### Features
+- [ ] ADD HELP system implementation
+- [ ] ADD TRANSLATION support
+- [ ] Add GPU acceleration support
+
+### Code Quality
+- [ ] Add comprehensive docstrings
+- [ ] Create unit test suite
+- [ ] Performance optimization for large files
+
+### Settings to add
+- [ ] Gpu accel
+- [ ] output file
+- [ ] output name
+- [ ] default -> remove / download
+- [ ]
+
+## Current Issues from Code Review
+
+### Critical Security/Stability (Skipped for Now)
+- [ ] Command injection vulnerability in FFmpeg calls (skip per user request)
+- [ ] Path traversal validation (skip per user request)
+
+### High Priority
+- [ ] Unsafe array access in music_removal.py (handle later for model flexibility)
+
+### Medium Priority
+
+### Low Priority
+- [ ] Remove TODO comments from code
+- [ ] Code duplication cleanup
+
+## Notes
+- UI feedback system depends on logging foundation
+- Model flexibility should be addressed after core stability is achieved
+- yt-dlp optimization (removing video splitting) will significantly improve performance and reduce code complexity

@@ -1,10 +1,14 @@
 import os
 from pathlib import Path
+from enum import Enum
 
-# FFmpeg Configuration
-FFMPEG_BINARY_PATH: Path = Path(".binaries/ffmpeg") if (os.name == "posix") else Path(".binaries/ffmpeg.exe")
+ROOT = Path(__file__).parent.resolve()
 
-# Video Quality Settings
+YOUTUBE_CLIENTS: list[str] = ["android_sdkless", "web"]
+
+FFMPEG_BINARY_PATH: Path = ROOT / ".binaries" / "ffmpeg" if (os.name == "posix") else ROOT / ".binaries" / "ffmpeg.exe"
+DEFAULT_MODEL: str = "UVR-MDX-NET-Voc_FT.onnx"
+
 QUALITY_SETTINGS = {
     "144p": "bestvideo[height<=144]+bestaudio/best",
     "240p": "bestvideo[height<=240]+bestaudio/best",
@@ -14,7 +18,6 @@ QUALITY_SETTINGS = {
     "1080p": "bestvideo[height<=1080]+bestaudio/best",
 }
 
-# Audio Processing Settings
 AUDIO_SETTINGS = {
     "sample_rate": "44100",
     "channels": "2",
@@ -23,15 +26,14 @@ AUDIO_SETTINGS = {
     "highpass_freq": "100",
     "lowpass_freq": "9000",
 }
-# Model Settings
-DEFAULT_MODEL: str = "UVR-MDX-NET-Voc_FT.onnx"
-# Output Settings
+
 DEFAULT_OUTPUT_FORMAT: str = "mp4"
-# YouTube Client Settings
-YOUTUBE_CLIENTS: list[str] = ["android_sdkless", "web"]
+
+VIDEO_TEMPLATE = "%(title)s.%(ext)s"
+
+PLAYLIST_TEMPLATE = "_%(playlist_index)s_-%(title)s.%(ext)s"
 
 ERROR_MESSAGES = {
-    # yt-dlp specific errors
     "invalid url": "Invalid URL: Please check the URL format and try again.",
     "private video": "Private video: This video is private and cannot be accessed.",
     "sign in to confirm your age": "Age-restricted: This video requires age verification.",
@@ -39,18 +41,18 @@ ERROR_MESSAGES = {
     "members only": "Members-only content: This video requires channel membership.",
     "geo restriction": "Geo-restricted: This video is not available in your country.",
 
-    # File system errors
-    "permission denied": "Permission denied: Check file/directory permissions.",
-    "no such file": "File not found: The specified file does not exist.",
-    "no such directory": "Directory not found: The specified directory does not exist.",
+    "ffmpeg": "Please enter a valid video file",
 
-    # Network errors
-    "unable to download": "Download failed: Unable to download from this URL.",
-    "network error": "Network error: Check your internet connection.",
-
-    # Processing errors
     "ffmpeg failed": "Processing error: Video processing failed.",
     "model failed": "AI model error: Music removal processing failed.",
 }
-# Generic fallback error
+
 GENERIC_ERROR_MESSAGE = "An error occurred: {error_details}"
+
+
+class MessageType(Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    DEBUG = "DEBUG"
+    PROGRESS = "PROGRESS"
