@@ -15,7 +15,7 @@ class MusicRemoverThread(QThread):
         super().__init__()
         self.input_video: Path = input_video
         self.user_output: Path = user_output
-        self.temp_dir: Path = Path()
+        self.temp_dir: Path = get_temp_path()
 
         self.base_name: str = self.input_video.stem
 
