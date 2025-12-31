@@ -6,6 +6,7 @@ pyinstaller `
     --onefile `
     --noupx `
     --add-binary "../.binaries/ffmpeg.exe;.binaries" `
+    --add-data "../.models/*;.models" `
     --collect-all torch `
     --collect-all audio_separator `
     --copy-metadata torch `

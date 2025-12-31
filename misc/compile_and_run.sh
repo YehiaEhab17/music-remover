@@ -7,6 +7,7 @@ pyinstaller \
     --noupx \
     \
     --add-binary "../.binaries/ffmpeg:.binaries" \
+    --add-data "../.models/*:.models" \
     \
     --collect-all torch \
     --collect-all audio_separator \

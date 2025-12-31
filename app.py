@@ -137,7 +137,7 @@ class MyWindow(QMainWindow):
 
             self.ui.textBrowser.setText(self.status_box_text)
         else:
-            print(message_type, message_text)
+            print(message_type.value, message_text)
 
     def set_input_enabled(self, status: bool) -> None:
         self.ui.start_button.setEnabled(status)

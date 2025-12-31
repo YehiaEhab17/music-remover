@@ -210,6 +210,8 @@ __marimo__/
 .idea
 .music_remover_temp
 .binaries/*
+!.binaries/ffmpeg_placeholder
+.models/*.onnx
 misc/AGENTS.md
 *.mp4
 *.mp3

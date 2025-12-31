@@ -3,7 +3,7 @@ from audio_separator.separator import Separator
 from pathlib import Path
 
 from config import MessageType, DEFAULT_MODEL
-from .utils import get_temp_path
+from .utils import get_temp_path, get_resource_path
 
 
 class MusicRemoverThread(QThread):
@@ -39,7 +39,10 @@ class MusicRemoverThread(QThread):
             self.completed.emit(False)
 
         try:
-            separator: Separator = Separator(output_dir=str(self.temp_dir))
+            separator: Separator = Separator(
+                output_dir=str(self.temp_dir),
+                model_file_dir = get_resource_path(".models")
+            )
             separator.load_model(DEFAULT_MODEL)
 
             self.progress.emit(f"Removing music from {self.input_video.name}", MessageType.INFO)
