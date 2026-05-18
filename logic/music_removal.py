@@ -1,3 +1,6 @@
+import re
+import sys
+import threading
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtBoundSignal
 from audio_separator.separator import Separator
 from pathlib import Path
@@ -5,6 +8,25 @@ import torch
 
 from config import MessageType, DEFAULT_MODEL
 from .utils import get_temp_path, get_resource_path
+
+
+class StreamCatcher:
+    """Intercepts terminal output to capture tqdm progress for the GUI."""
+
+    def __init__(self, signal, original_stderr):
+        self.signal = signal
+        self.original_stderr = original_stderr
+        self.regex = re.compile(r"(\d{1,3})%")
+
+    def write(self, text):
+        self.original_stderr.write(text)  # Still print to terminal
+        match = self.regex.search(text)
+        if match:
+            percent = float(match.group(1))
+            self.signal.emit(percent)
+
+    def flush(self):
+        self.original_stderr.flush()
 
 
 class MusicRemoverThread(QThread):
@@ -40,6 +62,7 @@ class MusicRemoverThread(QThread):
         except (RuntimeError, OSError) as e:
             self.progress.emit("Splitting Error: " + str(e), MessageType.ERROR)
             self.completed.emit(False)
+            return
 
         try:
             is_cuda_available = torch.cuda.is_available()
@@ -60,8 +83,20 @@ class MusicRemoverThread(QThread):
                 f"Removing music from {self.input_video.name}", MessageType.INFO
             )
 
-            output_files: list[str] = separator.separate(str(self.output_audio))
-            self.output_audio.unlink()
+            # --- Inject the progress bar stream catcher ---
+            original_stderr = sys.stderr
+            catcher = StreamCatcher(self.progress_percent, original_stderr)
+            sys.stderr = catcher
+
+            try:
+                output_files: list[str] = separator.separate(str(self.output_audio))
+            finally:
+                # Always restore the original stderr so we don't break the app
+                sys.stderr = original_stderr
+            # -----------------------------------------------
+
+            if self.output_audio.exists():
+                self.output_audio.unlink()
 
             self.progress.emit(
                 f"Finished Removing music from {self.input_video.name}",
@@ -86,7 +121,14 @@ class MusicRemoverThread(QThread):
 
             self.completed.emit(True)
 
+            try:
+                if self.final_audio_path.exists():
+                    self.final_audio_path.unlink()
+                if self.output_video.exists():
+                    self.output_video.unlink()
+            except OSError:
+                pass
+
         except (RuntimeError, OSError) as e:
             self.progress.emit("Combination Error: " + str(e), MessageType.ERROR)
             self.completed.emit(False)
-            # TODO: more elegant error handling
