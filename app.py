@@ -9,21 +9,22 @@ from GUI.dialog import Ui_linkDialog
 
 from logic.download_utils import DownloadThread
 from logic.music_removal import MusicRemoverThread
-from logic.utils import get_temp_path, validate_output_directory
+from logic.utils import get_temp_path, validate_output_directory, create_log, log
 
 from config import MessageType
 
 # TODO: ADD HELP
 # TODO : ADD TRANSLATION
-# TODO: add gpu accel
 
 
 class MyWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, log_file) -> None:
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.setFixedSize(self.size())
+
+        self.log_file = log_file
 
         self.download_thread = None
         self.music_remover_thread = None
@@ -32,7 +33,9 @@ class MyWindow(QMainWindow):
         self.ui.start_button.clicked.connect(self.open_dialog)
         self.ui.output_directory_button.clicked.connect(self.choose_output_directory)
         self.current_source = "From Link"
-        self.ui.source_chooser.currentTextChanged.connect(lambda source: setattr(self, "current_source", source))
+        self.ui.source_chooser.currentTextChanged.connect(
+            lambda source: setattr(self, "current_source", source)
+        )
 
         self.user_output = Path.cwd()
         self.status_box_text = ""
@@ -65,7 +68,7 @@ class MyWindow(QMainWindow):
             self,  # parent window
             "Select files",  # dialog title
             "",  # starting directory
-            "Video Files (*.mp4 *.mov);;All Files (*)"
+            "Video Files (*.mp4 *.mov);;All Files (*)",
         )
 
         files = [Path(f) for f in files]
@@ -85,11 +88,17 @@ class MyWindow(QMainWindow):
             playlist = True if (self.current_source == "From Playlist") else False
 
             # Start the download in a separate thread
-            self.download_thread = DownloadThread(link, quality, playlist, is_remove_music, self.user_output)
+            self.download_thread = DownloadThread(
+                link, quality, playlist, is_remove_music, self.user_output
+            )
 
             self.download_thread.output.connect(lambda paths: self.remove_music(paths))
-            self.download_thread.progress_percent.connect(lambda value: self.ui.progress_bar.setValue(int(value)))
-            self.download_thread.progress.connect(lambda msg, msg_type: self.message_handler(msg, msg_type))
+            self.download_thread.progress_percent.connect(
+                lambda value: self.ui.progress_bar.setValue(int(value))
+            )
+            self.download_thread.progress.connect(
+                lambda msg, msg_type: self.message_handler(msg, msg_type)
+            )
 
             self.download_thread.start()
         else:
@@ -114,30 +123,35 @@ class MyWindow(QMainWindow):
             self.music_remover_thread = MusicRemoverThread(path, self.user_output)
 
             self.music_remover_thread.completed.connect(self.start_next_thread)
-            self.music_remover_thread.progress_percent.connect(lambda value: self.ui.progress_bar.setValue(int(value)))
-            self.music_remover_thread.progress.connect(lambda msg, msg_type: self.message_handler(msg, msg_type))
+            self.music_remover_thread.progress_percent.connect(
+                lambda value: self.ui.progress_bar.setValue(int(value))
+            )
+            self.music_remover_thread.progress.connect(
+                lambda msg, msg_type: self.message_handler(msg, msg_type)
+            )
             self.music_remover_thread.start()
-
 
         except StopIteration:
             self.message_handler("All files processed", MessageType.PROGRESS)
             try:
                 shutil.rmtree(get_temp_path())
             except OSError:
-                self.message_handler("Failed to remove temp directory", MessageType.ERROR)
+                self.message_handler(
+                    "Failed to remove temp directory", MessageType.ERROR
+                )
             self.set_input_enabled(True)
             return
 
     def message_handler(self, message_text: str, message_type: MessageType) -> None:
+        message = f"{message_type.value}: {message_text}"
         if not message_type.value == "DEBUG":
             self.message_count += 1
-            self.status_box_text += f"[{self.message_count}]: {message_type.value}: {message_text} \n\n"
-            if message_type.value == "ERROR":
-                self.set_input_enabled(True)
-
+            self.status_box_text += f"[{self.message_count}]: {message} \n\n"
             self.ui.textBrowser.setText(self.status_box_text)
-        else:
-            print(message_type.value, message_text)
+        if message_type.value == "ERROR":
+            self.set_input_enabled(True)
+
+        log(self.log_file, message)
 
     def set_input_enabled(self, status: bool) -> None:
         self.ui.start_button.setEnabled(status)
@@ -163,8 +177,11 @@ class LinkDialog(QDialog):
 
 
 def window():
+    log_file = create_log()
+    log(log_file, "Application started")
+
     app = QApplication(sys.argv)
-    win = MyWindow()
+    win = MyWindow(log_file)
 
     win.show()
     sys.exit(app.exec())

@@ -81,6 +81,13 @@
 ### Low Priority
 - [ ] Remove TODO comments from code
 - [ ] Code duplication cleanup
+- [ ]
+# After split_video(input_video, output_audio, ...)
+if output_audio.exists():
+    file_size = output_audio.stat().st_size
+    if file_size < 1000: # If it's less than 1KB, it's basically empty
+        self.progress.emit("Warning: This video seems to be silent.", MessageType.ERROR)
+        return
 
 ## Notes
 - UI feedback system depends on logging foundation

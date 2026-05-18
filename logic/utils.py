@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from datetime import datetime
 
 from config import GENERIC_ERROR_MESSAGE, ERROR_MESSAGES
 
@@ -45,3 +46,19 @@ def validate_output_directory(path: Path) -> tuple[bool, str]:
         return False, "Permission denied: Cannot write to this directory"
     except OSError as e:
         return False, f"Directory validation failed: {str(e)}"
+
+def create_log() -> Path:
+    today = datetime.now().strftime("%Y-%m-%d")
+    log_path = Path.home() / "Documents" / "Logs"
+    log_path.mkdir(parents=True, exist_ok=True)
+    log_filename = log_path / f"music_remover_{today}.log"
+
+    return log_filename
+
+
+def log(log_filename: Path, message: str) -> None:
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    with open(log_filename, "a", encoding="utf-8") as f:
+        f.write(f"[{timestamp}] {message}\n")
+
+

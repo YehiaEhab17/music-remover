@@ -1,0 +1,9 @@
+{
+  "extractor_args": {
+    "youtube": {
+      "player_client": ["ios", "tv_embedded"],
+      "po_token": "YOUR_POT_TOKEN_IF_MANUAL",
+      "visitor_data": "YOUR_VISITOR_DATA_IF_MANUAL"
+    }
+  }
+}

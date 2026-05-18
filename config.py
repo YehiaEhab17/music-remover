@@ -4,19 +4,30 @@ from enum import Enum
 
 ROOT = Path(__file__).parent.resolve()
 
-YOUTUBE_CLIENTS: list[str] = ["android_sdkless", "web"]
+# YOUTUBE_CLIENTS: list[str] = ["android_sdkless", "web"]
+YOUTUBE_CLIENTS: list[str] = ["default", "-web_safari"]
+YOUTUBE_PLAYER_JS_VERSION: list[str] = ["actual"]
+GIST_CONFIG_URL: str = (
+    "https://raw.githubusercontent.com/YehiaEhab17/music-remover/main/ytdlp-config.json"
+)
 
-FFMPEG_BINARY_PATH: Path = ROOT / ".binaries" / "ffmpeg" if (os.name == "posix") else ROOT / ".binaries" / "ffmpeg.exe"
+
+FFMPEG_BINARY_PATH: Path = (
+    ROOT / ".binaries" / "ffmpeg"
+    if (os.name == "posix")
+    else ROOT / ".binaries" / "ffmpeg.exe"
+)
 DEFAULT_MODEL: str = "UVR-MDX-NET-Voc_FT.onnx"
 
 QUALITY_SETTINGS = {
-    "144p": "bestvideo[height<=144]+bestaudio/best",
-    "240p": "bestvideo[height<=240]+bestaudio/best",
-    "360p": "bestvideo[height<=360]+bestaudio/best",
-    "480p": "bestvideo[height<=480]+bestaudio/best",
-    "720p": "bestvideo[height<=720]+bestaudio/best",
-    "1080p": "bestvideo[height<=1080]+bestaudio/best",
+    "144p": "bv*[height<=144]+ba/b",
+    "240p": "bv*[height<=240]+ba/b",
+    "360p": "bv*[height<=360]+ba/b",
+    "480p": "bv*[height<=480]+ba/b",
+    "720p": "bv*[height<=720]+ba/b",
+    "1080p": "bv*[height<=1080]+ba/b",
 }
+
 
 AUDIO_SETTINGS = {
     "sample_rate": "44100",
@@ -40,9 +51,7 @@ ERROR_MESSAGES = {
     "video unavailable": "Video unavailable: This video has been removed or is not accessible.",
     "members only": "Members-only content: This video requires channel membership.",
     "geo restriction": "Geo-restricted: This video is not available in your country.",
-
     "ffmpeg": "Please enter a valid video file",
-
     "ffmpeg failed": "Processing error: Video processing failed.",
     "model failed": "AI model error: Music removal processing failed.",
 }

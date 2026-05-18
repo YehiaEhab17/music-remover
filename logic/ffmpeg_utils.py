@@ -26,6 +26,7 @@ def split_video(input_video: Path, output_audio: Path, output_video: Path) -> No
         "-i", str(input_video),
         "-an",
         "-vcodec", "copy",
+        "-scodec", "copy",  # Copy subtitle stream
         str(output_video),
     ]
 
@@ -45,10 +46,17 @@ def combine_video(input_audio: Path, input_video: Path, output_dir: Path) -> Non
         "ffmpeg",
         "-v", "error",
         "-y",
-        "-i", str(input_video),
-        "-i", str(input_audio),
-        "-c:v", "copy",
-        "-c:a", "aac",
+        "-i", str(input_video),  # Input 0
+        "-i", str(input_audio),  # Input 1
+
+        "-map", "0:v",  # Take video from the original video file
+        "-map", "1:a",  # Take the new, clean audio
+        "-map", "0:s?",  # Take subtitles from the video file (the '?' prevents errors if missing)
+
+        "-c:v", "copy",  # Keep video quality exactly as is
+        "-c:a", "aac",  # Encode the new audio to AAC
+        "-c:s", "mov_text",  # Encode subtitles so they work in MP4 players
+
         "-b:a", config.AUDIO_SETTINGS["output_bitrate"],
         "-af", f"highpass=f={config.AUDIO_SETTINGS['highpass_freq']}, lowpass=f={config.AUDIO_SETTINGS['lowpass_freq']}",
         str(output_video),

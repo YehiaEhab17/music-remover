@@ -1,6 +1,7 @@
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtBoundSignal
 from audio_separator.separator import Separator
 from pathlib import Path
+import torch
 
 from config import MessageType, DEFAULT_MODEL
 from .utils import get_temp_path, get_resource_path
@@ -32,25 +33,40 @@ class MusicRemoverThread(QThread):
 
             self.progress.emit(f"Splitting {self.input_video}", MessageType.DEBUG)
             split_video(self.input_video, self.output_audio, self.output_video)
-            self.progress.emit(f"Finished Splitting {self.input_video}", MessageType.DEBUG)
+            self.progress.emit(
+                f"Finished Splitting {self.input_video}", MessageType.DEBUG
+            )
 
         except (RuntimeError, OSError) as e:
             self.progress.emit("Splitting Error: " + str(e), MessageType.ERROR)
             self.completed.emit(False)
 
         try:
+            is_cuda_available = torch.cuda.is_available()
+            if is_cuda_available:
+                self.progress.emit(
+                    f"GPU acceleration enabled: {torch.cuda.get_device_name(0)}",
+                    MessageType.DEBUG,
+                )
+
             separator: Separator = Separator(
                 output_dir=str(self.temp_dir),
-                model_file_dir = get_resource_path(".models")
+                model_file_dir=get_resource_path(".models"),
+                use_autocast=is_cuda_available,
             )
             separator.load_model(DEFAULT_MODEL)
 
-            self.progress.emit(f"Removing music from {self.input_video.name}", MessageType.INFO)
+            self.progress.emit(
+                f"Removing music from {self.input_video.name}", MessageType.INFO
+            )
 
             output_files: list[str] = separator.separate(str(self.output_audio))
             self.output_audio.unlink()
 
-            self.progress.emit(f"Finished Removing music from {self.input_video.name}", MessageType.PROGRESS)
+            self.progress.emit(
+                f"Finished Removing music from {self.input_video.name}",
+                MessageType.PROGRESS,
+            )
 
             self.final_audio_path: Path = self.temp_dir / Path(output_files[1])
 
@@ -64,7 +80,9 @@ class MusicRemoverThread(QThread):
 
             self.progress.emit(f"Saving {self.input_video.name}", MessageType.INFO)
             combine_video(self.final_audio_path, self.output_video, self.user_output)
-            self.progress.emit(f"Finished Saving {self.input_video.name}", MessageType.DEBUG)
+            self.progress.emit(
+                f"Finished Saving {self.input_video.name}", MessageType.DEBUG
+            )
 
             self.completed.emit(True)
 
