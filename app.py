@@ -229,6 +229,10 @@ class MyWindow(QMainWindow):
         self.file_input() if (self.current_source == "From File") else self.link_input()
 
     def file_input(self):
+        self.status_box_text += '<hr style="border: 3px solid #888; margin: 8px 0">'
+        self.message_count = 0
+        self.ui.textBrowser.setHtml(self.status_box_text)
+
         files, _ = QFileDialog.getOpenFileNames(
             self,  # parent window
             "Select files",  # dialog title
@@ -244,6 +248,7 @@ class MyWindow(QMainWindow):
             self._error_count = 0
             self._summary_shown = False
             self._processing_source = "file"
+            self._overall_start = time.monotonic()
             self.remove_music(files)
         else:
             self.message_handler("please select a file", MessageType.ERROR)
@@ -266,6 +271,10 @@ class MyWindow(QMainWindow):
                 )
                 return
 
+            self.status_box_text += '<hr style="border: 3px solid #888; margin: 8px 0">'
+            self.message_count = 0
+            self.ui.textBrowser.setHtml(self.status_box_text)
+
             self.pending_links = list(links)
             self._total_files = len(links)
             self._processed_count = 0
@@ -287,11 +296,12 @@ class MyWindow(QMainWindow):
 
         link = self.pending_links.pop(0)
         self.ui.progress_bar.setValue(0)
+        self._overall_start = time.monotonic()
 
-        remaining = len(self.pending_links) + 1
+        current = self._total_files - len(self.pending_links)
         if self._total_files > 1:
             self.message_handler(
-                f"Downloading ({remaining}/{self._total_files})", MessageType.INFO
+                f"Downloading ({current}/{self._total_files})", MessageType.INFO
             )
 
         self.download_thread = DownloadThread(
@@ -339,9 +349,11 @@ class MyWindow(QMainWindow):
                 self.music_remover_thread.quit()
                 self.music_remover_thread.wait(5000)
 
-            benchmark_recorder = BenchmarkRecorder(
-                enabled=self.settings.get("benchmarking_enabled", False),
-                settings=self.settings,
+            benchmark_enabled = self.settings.get("benchmarking_enabled", False)
+            benchmark_recorder = (
+                BenchmarkRecorder(enabled=True, settings=self.settings)
+                if benchmark_enabled
+                else None
             )
 
             self.music_remover_thread = MusicRemoverThread(
@@ -356,6 +368,7 @@ class MyWindow(QMainWindow):
                 retry_failed_chunks=self.settings["retry_failed_chunks"],
                 benchmark_recorder=benchmark_recorder,
                 source_type=getattr(self, "_processing_source", "file"),
+                overall_start=getattr(self, "_overall_start", None),
             )
 
             self.music_remover_thread.completed.connect(self._on_file_completed)
@@ -399,6 +412,9 @@ class MyWindow(QMainWindow):
             cleanup_video_temp(self.music_remover_thread.base_name)
         if success:
             self._processed_count += 1
+        self.status_box_text += '<hr style="border: 1px dashed #555; margin: 4px 0">'
+        self.message_count = 0
+        self.ui.textBrowser.setHtml(self.status_box_text)
         self._start_next_thread()
 
     def _show_summary(self) -> None:

@@ -21,7 +21,8 @@ FIELDS = [
     "split_time_sec",
     "processing_time_sec",
     "combine_time_sec",
-    "total_time_sec",
+    "pipeline_time_sec",
+    "overall_time_sec",
     "chunked",
     "num_chunks",
     "input_size_mb",
@@ -93,10 +94,15 @@ class BenchmarkRecorder:
         self._row["chunked"] = "yes" if chunked else "no"
         self._row["num_chunks"] = num_chunks
 
-    def set_total_time(self, seconds: float) -> None:
+    def set_pipeline_time(self, seconds: float) -> None:
         if not self._enabled:
             return
-        self._row["total_time_sec"] = round(seconds, 2)
+        self._row["pipeline_time_sec"] = round(seconds, 2)
+
+    def set_overall_time(self, seconds: float) -> None:
+        if not self._enabled:
+            return
+        self._row["overall_time_sec"] = round(seconds, 2)
 
     def set_error(self, error: str) -> None:
         if not self._enabled:

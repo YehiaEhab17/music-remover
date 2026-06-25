@@ -50,6 +50,7 @@ class MusicRemoverThread(QThread):
         retry_failed_chunks: bool = True,
         benchmark_recorder: BenchmarkRecorder | None = None,
         source_type: str = "file",
+        overall_start: float | None = None,
     ) -> None:
         super().__init__()
         self.input_video: Path = input_video
@@ -70,6 +71,7 @@ class MusicRemoverThread(QThread):
         self.final_audio_path: Path = Path()
         self._benchmark_recorder: BenchmarkRecorder | None = benchmark_recorder
         self._source_type: str = source_type
+        self._overall_start: float | None = overall_start
 
     def run(self) -> None:
         self.temp_dir.mkdir(parents=True, exist_ok=True)
@@ -87,13 +89,17 @@ class MusicRemoverThread(QThread):
         if self._benchmark_recorder:
             from logic.ffmpeg_utils import get_audio_duration
 
+            dur = get_audio_duration(self.output_audio)
             self._benchmark_recorder.set_video_info(
                 source_type=self._source_type,
                 filename=self.input_video.name,
-                duration_sec=get_audio_duration(self.output_audio),
+                duration_sec=dur,
             )
             self._benchmark_recorder.set_file_size("input", self.input_video)
             self._benchmark_recorder.set_file_size("audio", self.output_audio)
+            mins = int(dur // 60)
+            secs = int(dur % 60)
+            self.progress.emit(f"Duration: {mins}m {secs}s", MessageType.PROGRESS)
 
         try:
             wav_size_mb = self.output_audio.stat().st_size / (1024 * 1024)
@@ -112,13 +118,21 @@ class MusicRemoverThread(QThread):
 
         try:
             self._combine()
-            total_elapsed = time.monotonic() - total_start
-            self.progress.emit(f"Total: {total_elapsed:.1f}s", MessageType.PROGRESS)
+            pipeline_elapsed = time.monotonic() - total_start
             if self._benchmark_recorder:
-                self._benchmark_recorder.set_total_time(total_elapsed)
+                self._benchmark_recorder.set_pipeline_time(pipeline_elapsed)
                 self._benchmark_recorder.set_file_size(
                     "output", self.user_output / self.output_video.name
                 )
+                self.progress.emit(
+                    f"Pipeline: {pipeline_elapsed:.1f}s", MessageType.PROGRESS
+                )
+                if self._overall_start is not None:
+                    overall_elapsed = time.monotonic() - self._overall_start
+                    self._benchmark_recorder.set_overall_time(overall_elapsed)
+                    self.progress.emit(
+                        f"Total: {overall_elapsed:.1f}s", MessageType.PROGRESS
+                    )
             self._finalize_benchmark(True)
             self.completed.emit(True)
         except (RuntimeError, OSError):
@@ -136,9 +150,9 @@ class MusicRemoverThread(QThread):
             self.progress.emit("Splitting Error: " + str(e), MessageType.ERROR)
             raise
         split_elapsed = time.monotonic() - split_start
-        self.progress.emit(f"Split: {split_elapsed:.1f}s", MessageType.PROGRESS)
 
         if self._benchmark_recorder:
+            self.progress.emit(f"Split: {split_elapsed:.1f}s", MessageType.PROGRESS)
             self._benchmark_recorder.set_phase_time("split", split_elapsed)
 
     def _make_separator(self) -> Separator:
@@ -196,14 +210,14 @@ class MusicRemoverThread(QThread):
             self.output_audio.unlink()
 
         process_elapsed = time.monotonic() - process_start
-        self.progress.emit(
-            f"Remove music: {process_elapsed:.1f}s",
-            MessageType.PROGRESS,
-        )
 
         self.final_audio_path = self.temp_dir / Path(output_files[1])
 
         if self._benchmark_recorder:
+            self.progress.emit(
+                f"Remove music: {process_elapsed:.1f}s",
+                MessageType.PROGRESS,
+            )
             self._benchmark_recorder.set_phase_time("processing", process_elapsed)
             self._benchmark_recorder.set_file_size("clean_audio", self.final_audio_path)
 
@@ -399,14 +413,14 @@ class MusicRemoverThread(QThread):
             self.output_audio.unlink()
 
         process_elapsed = time.monotonic() - process_start
-        self.progress.emit(
-            f"Remove music: {process_elapsed:.1f}s",
-            MessageType.PROGRESS,
-        )
 
         self.final_audio_path = final_clean
 
         if self._benchmark_recorder:
+            self.progress.emit(
+                f"Remove music: {process_elapsed:.1f}s",
+                MessageType.PROGRESS,
+            )
             self._benchmark_recorder.set_phase_time("processing", process_elapsed)
             self._benchmark_recorder.set_file_size("clean_audio", self.final_audio_path)
             self._benchmark_recorder.set_chunk_info(True, len(chunks))
@@ -423,12 +437,12 @@ class MusicRemoverThread(QThread):
             raise
 
         combine_elapsed = time.monotonic() - combine_start
-        self.progress.emit(
-            f"Combine: {combine_elapsed:.1f}s",
-            MessageType.PROGRESS,
-        )
 
         if self._benchmark_recorder:
+            self.progress.emit(
+                f"Combine: {combine_elapsed:.1f}s",
+                MessageType.PROGRESS,
+            )
             self._benchmark_recorder.set_phase_time("combine", combine_elapsed)
 
         if self.final_audio_path.exists():
