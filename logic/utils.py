@@ -1,8 +1,10 @@
+import shutil
 import sys
+import time
 from pathlib import Path
 from datetime import datetime
 
-from config import GENERIC_ERROR_MESSAGE, ERROR_MESSAGES
+from config import GENERIC_ERROR_MESSAGE, ERROR_MESSAGES, ROOT
 
 
 def get_temp_path() -> Path:
@@ -11,16 +13,45 @@ def get_temp_path() -> Path:
     return temp_dir
 
 
+def clear_temp_dir(max_age_seconds: float | None = None) -> int:
+    """Remove files/subdirs from the temp directory.
+
+    Args:
+        max_age_seconds: If set, only remove entries older than this many seconds.
+                         If None, remove everything.
+
+    Returns:
+        Number of entries removed.
+    """
+    temp = get_temp_path()
+    cutoff = time.time() - max_age_seconds if max_age_seconds is not None else 0
+    removed = 0
+
+    for entry in temp.iterdir():
+        if entry.name == ".lock":
+            continue
+        try:
+            if max_age_seconds is not None and entry.stat().st_mtime >= cutoff:
+                continue
+            if entry.is_dir():
+                shutil.rmtree(entry, ignore_errors=True)
+            else:
+                entry.unlink(missing_ok=True)
+            removed += 1
+        except OSError:
+            pass
+
+    return removed
+
+
 def get_resource_path(relative_path: str) -> Path:
-    """Get absolute path to resource, works for dev and for PyInstaller"""
+    """Get absolute path to resource, works for dev and for PyInstaller."""
     if hasattr(sys, "_MEIPASS"):
-        base_path = Path(getattr(sys, "_MEIPASS"))
+        base_path = Path(sys._MEIPASS)
     else:
-        base_path = Path.cwd()
+        base_path = ROOT
 
-    absolute_path = base_path / relative_path
-
-    return absolute_path
+    return base_path / relative_path
 
 
 def get_error_message(error_str: str) -> str:

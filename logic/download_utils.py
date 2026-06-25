@@ -4,9 +4,6 @@ from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 import subprocess
 import re
-import shutil
-import tempfile
-import json
 
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtBoundSignal
 
@@ -92,10 +89,6 @@ def download_video(
         "en,ar,fr",
         "--embed-subs",
     ]
-
-    cookies_path = Path("/home/Yehia/Downloads/cookies.txt")
-    if cookies_path.exists():
-        cmd.extend(["--cookies", str(cookies_path)])
 
     # Instead of default clients, we load them remotely or use fallback
     if YOUTUBE_CLIENTS and YOUTUBE_PLAYER_JS_VERSION:

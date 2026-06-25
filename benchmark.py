@@ -7,34 +7,15 @@ Usage:
     python benchmark.py <video_path>
 """
 
-import os
 import sys
 import time
-import shutil
 import subprocess
 import threading
 from pathlib import Path
 
-# LD_LIBRARY_PATH fix (same as app.py)
-_nvidia_base = (
-    Path(__file__).parent / "venv" / "lib64" / "python3.14" / "site-packages" / "nvidia"
-)
-for _sub in (
-    "cudnn/lib",
-    "cublas/lib",
-    "cuda_runtime/lib",
-    "cuda_cupti/lib",
-    "cuda_nvrtc/lib",
-    "nccl/lib",
-    "cu13/lib",
-    "cusparselt/lib",
-    "nvshmem/lib",
-):
-    _p = _nvidia_base / _sub
-    if _p.exists():
-        os.environ["LD_LIBRARY_PATH"] = (
-            str(_p) + ":" + os.environ.get("LD_LIBRARY_PATH", "")
-        )
+from logic import setup_environment
+
+setup_environment()
 
 import torch
 from PyQt6.QtCore import QThread
@@ -42,7 +23,6 @@ from PyQt6.QtWidgets import QApplication
 
 from logic.music_removal import MusicRemoverThread
 from logic.utils import get_temp_path
-from config import MessageType
 
 
 # ── VRAM Monitor ──────────────────────────────────────────────────────────────

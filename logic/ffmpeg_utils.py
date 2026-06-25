@@ -53,7 +53,6 @@ def split_video(input_video: Path, output_audio: Path, output_video: Path) -> No
 def combine_video(input_audio: Path, input_video: Path, output_dir: Path) -> None:
     output_video: Path = output_dir / input_video.name
 
-    # noinspection PyPep8
     command = [
         "ffmpeg",
         "-v",
@@ -85,8 +84,8 @@ def combine_video(input_audio: Path, input_video: Path, output_dir: Path) -> Non
     try:
         subprocess.run(command, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        error_message = get_error_message(str(e))
-        raise ValueError(error_message)
+        error_message = get_error_message(e.stderr)
+        raise RuntimeError(error_message) from e
 
 
 def get_audio_duration(audio_path: Path) -> float:

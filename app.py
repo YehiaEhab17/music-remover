@@ -6,33 +6,9 @@ import shutil
 import time
 from pathlib import Path
 
-if getattr(sys, "frozen", False):
-    _nvidia_base = Path(sys._MEIPASS) / "nvidia"
-else:
-    _nvidia_base = (
-        Path(__file__).parent
-        / "venv"
-        / "lib64"
-        / "python3.14"
-        / "site-packages"
-        / "nvidia"
-    )
-for _sub in (
-    "cudnn/lib",
-    "cublas/lib",
-    "cuda_runtime/lib",
-    "cuda_cupti/lib",
-    "cuda_nvrtc/lib",
-    "nccl/lib",
-    "cu13/lib",
-    "cusparselt/lib",
-    "nvshmem/lib",
-):
-    _p = _nvidia_base / _sub
-    if _p.exists():
-        os.environ["LD_LIBRARY_PATH"] = (
-            str(_p) + ":" + os.environ.get("LD_LIBRARY_PATH", "")
-        )
+from logic import setup_environment
+
+setup_environment()
 
 if getattr(sys, "frozen", False):
     import importlib.resources as _resources
@@ -65,37 +41,24 @@ if getattr(sys, "frozen", False):
 
     CommonSeparator.write_audio = _patched_write_audio
 
-from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QFileDialog, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox
 
 from GUI.main import Ui_MainWindow
-from GUI.dialog import Ui_linkDialog
+from GUI.link_dialog import LinkDialog
 from GUI.settings_dialog import SettingsDialog
 from logic.benchmarking import BenchmarkRecorder
 from logic.download_utils import DownloadThread
 from logic.music_removal import MusicRemoverThread
-from logic.utils import get_temp_path, validate_output_directory, create_log, log
+from logic.utils import (
+    get_temp_path,
+    validate_output_directory,
+    create_log,
+    log,
+    clear_temp_dir,
+)
 from logic import settings_manager
 
-from config import MessageType
-
-TEMP_STALE_MAX_AGE = 24 * 60 * 60  # 24 hours in seconds
-
-
-def cleanup_stale_temp():
-    """Remove temp files/subdirs older than 24 hours on startup."""
-    temp = get_temp_path()
-    cutoff = time.time() - TEMP_STALE_MAX_AGE
-    for entry in temp.iterdir():
-        if entry.name == ".lock":
-            continue
-        try:
-            if entry.stat().st_mtime < cutoff:
-                if entry.is_dir():
-                    shutil.rmtree(entry, ignore_errors=True)
-                else:
-                    entry.unlink(missing_ok=True)
-        except OSError:
-            pass
+from config import MessageType, COLORS
 
 
 def cleanup_video_temp(base_name: str):
@@ -107,15 +70,6 @@ def cleanup_video_temp(base_name: str):
         for f in get_temp_path().glob(pattern):
             if f.is_file() and f.name != ".lock":
                 f.unlink(missing_ok=True)
-
-
-COLORS = {
-    "INFO": "#2196F3",
-    "WARNING": "#FF9800",
-    "ERROR": "#F44336",
-    "PROGRESS": "#4CAF50",
-    "DEBUG": "#9E9E9E",
-}
 
 
 class MyWindow(QMainWindow):
@@ -131,10 +85,6 @@ class MyWindow(QMainWindow):
         self.download_thread = None
         self.music_remover_thread = None
         self.music_remover_threads = None
-
-        self._processed_count = 0
-        self._error_count = 0
-        self._total_files = 0
 
         self.ui.start_button.clicked.connect(self.open_dialog)
         self.ui.output_directory_button.clicked.connect(self.choose_output_directory)
@@ -162,7 +112,7 @@ class MyWindow(QMainWindow):
         self._total_files = 0
         self._summary_shown = True  # cancel swallows summary
 
-        cleanup_stale_temp()
+        clear_temp_dir(max_age_seconds=24 * 60 * 60)
 
     def _open_output_folder(self) -> None:
         path = str(self.user_output.resolve())
@@ -263,7 +213,7 @@ class MyWindow(QMainWindow):
             links = dialog.get_links()
             quality = dialog.get_quality()
             is_remove_music = dialog.get_is_remove_music()
-            playlist = True if (self.current_source == "From Playlist") else False
+            playlist = self.current_source == "From Playlist"
 
             if not links:
                 self.message_handler(
@@ -323,12 +273,11 @@ class MyWindow(QMainWindow):
         self.download_thread.start()
 
     def _on_download_done(self, paths):
-        if not self._link_remove:
-            self._processed_count += 1
         if self._link_remove:
             self._processing_source = "youtube"
             self.remove_music(paths, on_complete=self._start_next_download)
         else:
+            self._processed_count += 1
             self._start_next_download()
 
     def remove_music(self, paths: list[Path], on_complete=None) -> None:
@@ -435,39 +384,6 @@ class MyWindow(QMainWindow):
         self.ui.source_chooser.setEnabled(status)
         self.ui.output_directory_button.setEnabled(status)
         self.ui.cancel_button.setEnabled(not status)
-
-
-class LinkDialog(QDialog):
-    def __init__(
-        self, default_quality: str = "720p", default_remove_music: bool = True
-    ) -> None:
-        super().__init__()
-        self.ui = Ui_linkDialog()
-        self.ui.setupUi(self)
-        self.setFixedSize(self.size())
-
-        self.ui.remove_music_box.setChecked(default_remove_music)
-
-        quality_map = {
-            "144p": 0,
-            "240p": 1,
-            "360p": 2,
-            "480p": 3,
-            "720p": 4,
-            "1080p": 5,
-        }
-        idx = quality_map.get(default_quality, 4)
-        self.ui.quality_selector.setCurrentIndex(idx)
-
-    def get_links(self) -> list[str]:
-        text = self.ui.links_box.toPlainText()
-        return [url.strip() for url in text.split() if url.strip()]
-
-    def get_quality(self) -> str:
-        return self.ui.quality_selector.currentText()
-
-    def get_is_remove_music(self) -> bool:
-        return self.ui.remove_music_box.isChecked()
 
 
 def window():

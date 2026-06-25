@@ -221,6 +221,89 @@ class MusicRemoverThread(QThread):
             self._benchmark_recorder.set_phase_time("processing", process_elapsed)
             self._benchmark_recorder.set_file_size("clean_audio", self.final_audio_path)
 
+    def _process_one_chunk(self, idx: int, chunk_path: Path) -> tuple[int, Path, list]:
+        """Process a single audio chunk through the separator."""
+        if not chunk_path.exists():
+            raise FileNotFoundError(
+                f"Chunk {idx + 1} file missing before separation: {chunk_path}"
+            )
+        sep = self._make_separator()
+        try:
+            output = list(sep.separate(str(chunk_path)))
+        except Exception as e:
+            raise RuntimeError(f"Separator failed for chunk {idx + 1}: {e}") from e
+        finally:
+            del sep
+        if len(output) < 2:
+            raise RuntimeError(
+                f"Chunk {idx + 1}: separator returned {len(output)} outputs (expected 2). "
+                f"Model may have failed to load."
+            )
+        return idx, chunk_path, output
+
+    def _run_chunks(
+        self,
+        chunk_indices: list[int],
+        chunk_paths: list[Path],
+        processed: list[Path | None],
+        max_workers: int,
+        total_for_progress: int,
+    ) -> list[tuple[int, Exception]]:
+        """Run chunks sequentially or in parallel. Returns list of (index, error) tuples."""
+        errors: list[tuple[int, Exception]] = []
+
+        if max_workers <= 1:
+            for i, (idx, chunk_path) in enumerate(zip(chunk_indices, chunk_paths)):
+                try:
+                    _, _, output = self._process_one_chunk(idx, chunk_path)
+                    processed[idx] = self.temp_dir / Path(output[1])
+                    chunk_path.unlink(missing_ok=True)
+                except Exception as e:
+                    errors.append((idx, e))
+                    self.progress.emit(f"Chunk {idx + 1} Error: {e}", MessageType.ERROR)
+                self.progress_percent.emit(int((i + 1) / total_for_progress * 100))
+        else:
+            old_omp = os.environ.get("OMP_NUM_THREADS")
+            old_ort = os.environ.get("ORT_INTRA_OP_NUM_THREADS")
+            old_torch = torch.get_num_threads()
+            os.environ["OMP_NUM_THREADS"] = "1"
+            os.environ["ORT_INTRA_OP_NUM_THREADS"] = "1"
+            torch.set_num_threads(1)
+            try:
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    futures = {
+                        executor.submit(self._process_one_chunk, idx, ch): idx
+                        for idx, ch in zip(chunk_indices, chunk_paths)
+                    }
+                    completed_count = 0
+                    for future in as_completed(futures):
+                        idx = futures[future]
+                        try:
+                            _, chunk_path, output = future.result()
+                            processed[idx] = self.temp_dir / Path(output[1])
+                            chunk_path.unlink(missing_ok=True)
+                        except Exception as e:
+                            errors.append((idx, e))
+                            self.progress.emit(
+                                f"Chunk {idx + 1} Error: {e}", MessageType.ERROR
+                            )
+                        completed_count += 1
+                        self.progress_percent.emit(
+                            int(completed_count / total_for_progress * 100)
+                        )
+            finally:
+                if old_omp is not None:
+                    os.environ["OMP_NUM_THREADS"] = old_omp
+                else:
+                    os.environ.pop("OMP_NUM_THREADS", None)
+                if old_ort is not None:
+                    os.environ["ORT_INTRA_OP_NUM_THREADS"] = old_ort
+                else:
+                    os.environ.pop("ORT_INTRA_OP_NUM_THREADS", None)
+                torch.set_num_threads(old_torch)
+
+        return errors
+
     def _process_chunked(self) -> None:
         from logic.ffmpeg_utils import (
             combine_audio_chunks,
@@ -262,124 +345,21 @@ class MusicRemoverThread(QThread):
         )
 
         processed: list[Path | None] = [None] * len(chunks)
-        errors: list[tuple[int, Exception]] = []
         process_start = time.monotonic()
 
-        def process_one(idx: int, chunk_path: Path) -> tuple[int, Path, list]:
-            if not chunk_path.exists():
-                raise FileNotFoundError(
-                    f"Chunk {idx + 1} file missing before separation: {chunk_path}"
-                )
-            sep = self._make_separator()
-            try:
-                output = list(sep.separate(str(chunk_path)))
-            except Exception as e:
-                raise RuntimeError(f"Separator failed for chunk {idx + 1}: {e}") from e
-            finally:
-                del sep
-            if len(output) < 2:
-                raise RuntimeError(
-                    f"Chunk {idx + 1}: separator returned {len(output)} outputs (expected 2). "
-                    f"Model may have failed to load."
-                )
-            return idx, chunk_path, output
-
-        def run_sequential(chunk_list: list[Path]) -> list[tuple[int, Exception]]:
-            errs: list[tuple[int, Exception]] = []
-            for idx, chunk_path in enumerate(chunk_list):
-                try:
-                    _, _, output = process_one(idx, chunk_path)
-                    processed[idx] = self.temp_dir / Path(output[1])
-                    chunk_path.unlink(missing_ok=True)
-                except Exception as e:
-                    errs.append((idx, e))
-                    self.progress.emit(f"Chunk {idx + 1} Error: {e}", MessageType.ERROR)
-                self.progress_percent.emit(int((idx + 1) / len(chunks) * 100))
-            return errs
-
-        def run_parallel(chunk_list: list[Path]) -> list[tuple[int, Exception]]:
-            errs: list[tuple[int, Exception]] = []
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = {
-                    executor.submit(process_one, idx, ch): idx
-                    for idx, ch in enumerate(chunk_list)
-                }
-                completed_count = 0
-                for future in as_completed(futures):
-                    idx = futures[future]
-                    try:
-                        _, chunk_path, output = future.result()
-                        processed[idx] = self.temp_dir / Path(output[1])
-                        chunk_path.unlink(missing_ok=True)
-                    except Exception as e:
-                        errs.append((idx, e))
-                        self.progress.emit(
-                            f"Chunk {idx + 1} Error: {e}", MessageType.ERROR
-                        )
-                    completed_count += 1
-                    self.progress_percent.emit(int(completed_count / len(chunks) * 100))
-            return errs
-
-        if max_workers <= 1:
-            errors = run_sequential(chunks)
-        else:
-            old_omp = os.environ.get("OMP_NUM_THREADS")
-            old_ort = os.environ.get("ORT_INTRA_OP_NUM_THREADS")
-            old_torch = torch.get_num_threads()
-            os.environ["OMP_NUM_THREADS"] = "1"
-            os.environ["ORT_INTRA_OP_NUM_THREADS"] = "1"
-            torch.set_num_threads(1)
-            try:
-                errors = run_parallel(chunks)
-            finally:
-                if old_omp is not None:
-                    os.environ["OMP_NUM_THREADS"] = old_omp
-                else:
-                    os.environ.pop("OMP_NUM_THREADS", None)
-                if old_ort is not None:
-                    os.environ["ORT_INTRA_OP_NUM_THREADS"] = old_ort
-                else:
-                    os.environ.pop("ORT_INTRA_OP_NUM_THREADS", None)
-                torch.set_num_threads(old_torch)
+        indices = list(range(len(chunks)))
+        errors = self._run_chunks(indices, chunks, processed, max_workers, len(chunks))
 
         if errors and self.retry_failed_chunks:
             retry_indices = [idx for idx, _ in errors]
             retry_chunks = [chunks[idx] for idx in retry_indices]
-            errors = []
             self.progress.emit(
                 f"Retrying {len(retry_indices)} failed chunk(s)...",
                 MessageType.WARNING,
             )
-            if max_workers <= 1:
-                for idx, chunk_path in zip(retry_indices, retry_chunks):
-                    try:
-                        _, _, output = process_one(idx, chunk_path)
-                        processed[idx] = self.temp_dir / Path(output[1])
-                        chunk_path.unlink(missing_ok=True)
-                    except Exception as e:
-                        errors.append((idx, e))
-                        self.progress.emit(
-                            f"Retry chunk {idx + 1} Error: {e}",
-                            MessageType.ERROR,
-                        )
-            else:
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    futures = {
-                        executor.submit(process_one, idx, ch): idx
-                        for idx, ch in zip(retry_indices, retry_chunks)
-                    }
-                    for future in as_completed(futures):
-                        idx = futures[future]
-                        try:
-                            _, chunk_path, output = future.result()
-                            processed[idx] = self.temp_dir / Path(output[1])
-                            chunk_path.unlink(missing_ok=True)
-                        except Exception as e:
-                            errors.append((idx, e))
-                            self.progress.emit(
-                                f"Retry chunk {idx + 1} Error: {e}",
-                                MessageType.ERROR,
-                            )
+            errors = self._run_chunks(
+                retry_indices, retry_chunks, processed, max_workers, len(retry_indices)
+            )
 
         if errors:
             for p in processed:

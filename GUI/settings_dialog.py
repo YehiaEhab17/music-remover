@@ -1,14 +1,12 @@
-import shutil
 import torch
-from pathlib import Path
 from PyQt6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from .settings import Ui_SettingsDialog
 from logic import settings_manager
-from logic.utils import get_temp_path
+from logic.utils import get_temp_path, clear_temp_dir
+from config import QUALITY_INDEX
 
 
-QUALITY_INDEX = {"144p": 0, "240p": 1, "360p": 2, "480p": 3, "720p": 4, "1080p": 5}
 CHUNK_INDEX = {30: 0, 60: 1, 120: 2}
 
 
@@ -47,7 +45,7 @@ class SettingsDialog(QDialog):
 
     def _clear_cache(self) -> None:
         temp = get_temp_path()
-        if not temp.exists():
+        if not temp.exists() or not any(temp.iterdir()):
             QMessageBox.information(self, "Cache", "Cache is already empty.")
             return
 
@@ -61,13 +59,7 @@ class SettingsDialog(QDialog):
             return
 
         try:
-            for entry in temp.iterdir():
-                if entry.name == ".lock":
-                    continue
-                if entry.is_dir():
-                    shutil.rmtree(entry, ignore_errors=True)
-                elif entry.is_file():
-                    entry.unlink(missing_ok=True)
+            clear_temp_dir()
             QMessageBox.information(self, "Cache", "Cache cleared successfully.")
         except OSError as e:
             QMessageBox.warning(self, "Cache", f"Failed to clear cache:\n{e}")
