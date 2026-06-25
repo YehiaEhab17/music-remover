@@ -1,20 +1,20 @@
+import logging
 import os
 import stat
 import json
-import time
 import urllib.request
 from pathlib import Path
 
 from config import ROOT
 
+logger = logging.getLogger(__name__)
+
 BIN_DIR = ROOT / ".binaries"
-BIN_DIR.mkdir(parents=True, exist_ok=True)
 
 if os.name == "nt":
     YTDLP_BIN_NAME = "yt-dlp.exe"
     YTDLP_URL = "https://github.com/yt-dlp/yt-dlp-master-builds/releases/latest/download/yt-dlp.exe"
 elif os.name == "posix":
-    # Darwin (macOS) vs Linux
     import platform
 
     if platform.system() == "Darwin":
@@ -40,22 +40,22 @@ def get_ytdlp_path() -> Path:
 def get_latest_ytdlp_version() -> str:
     """Gets the latest yt-dlp nightly version tag from GitHub."""
     try:
-        # A HEAD request is faster, but urlopen handles redirects natively
         req = urllib.request.Request(
             "https://github.com/yt-dlp/yt-dlp-master-builds/releases/latest",
             method="HEAD",
         )
         response = urllib.request.urlopen(req, timeout=5)
-        # url will be something like: https://github.com/yt-dlp/yt-dlp-master-builds/releases/tag/2026.05.16.203101
         tag = response.url.split("/")[-1]
         return tag
     except Exception as e:
-        print(f"Failed to fetch latest yt-dlp version: {e}")
+        logger.warning("Failed to fetch latest yt-dlp version: %s", e)
         return ""
 
 
 def check_and_download_ytdlp():
     """Checks the latest version and downloads if it's newer or missing."""
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
+
     latest_version = get_latest_ytdlp_version()
 
     current_version = ""
@@ -70,13 +70,14 @@ def check_and_download_ytdlp():
         should_download = True
 
     if should_download:
-        print(
-            f"Updating yt-dlp to version {latest_version or 'latest'} from {YTDLP_URL}..."
+        logger.info(
+            "Updating yt-dlp to version %s from %s...",
+            latest_version or "latest",
+            YTDLP_URL,
         )
         try:
             temp_path = YTDLP_PATH.with_suffix(".tmp")
 
-            # Download with a user agent just in case
             req = urllib.request.Request(
                 YTDLP_URL, headers={"User-Agent": "Mozilla/5.0"}
             )
@@ -86,13 +87,12 @@ def check_and_download_ytdlp():
             ):
                 out_file.write(response.read())
 
-            # Move and replace
             if temp_path.exists():
                 if YTDLP_PATH.exists():
                     try:
                         YTDLP_PATH.unlink()
                     except OSError:
-                        pass  # Might be locked on Windows, but we'll try
+                        pass
                 temp_path.rename(YTDLP_PATH)
 
             if os.name == "posix":
@@ -104,7 +104,7 @@ def check_and_download_ytdlp():
                     f.write(latest_version)
 
         except Exception as e:
-            print(f"Failed to download/update yt-dlp: {e}")
+            logger.warning("Failed to download/update yt-dlp: %s", e)
 
 
 def fetch_gist_config(gist_url: str) -> dict:
@@ -117,5 +117,5 @@ def fetch_gist_config(gist_url: str) -> dict:
             data = json.loads(response.read().decode())
             return data
     except Exception as e:
-        print(f"Failed to fetch gist config: {e}")
+        logger.warning("Failed to fetch gist config: %s", e)
         return {}

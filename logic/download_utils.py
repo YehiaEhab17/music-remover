@@ -32,23 +32,23 @@ def get_playlist_index(url):
         return video_index
 
 
-def apply_gist_config(cmd_args: list[str]):
-    """Fetches and applies remote config to the yt-dlp command."""
+def get_gist_config_args() -> list[str]:
+    """Fetch remote config and return extra yt-dlp arguments."""
     if not GIST_CONFIG_URL:
-        return
+        return []
 
     config = fetch_gist_config(GIST_CONFIG_URL)
     if not config:
-        return
+        return []
 
-    # Extract dynamic extractor arguments from Gist
+    extra_args: list[str] = []
     extractor_args = config.get("extractor_args", {})
-    if extractor_args:
-        for ex_key, ex_val in extractor_args.items():
-            for k, v in ex_val.items():
-                if isinstance(v, list):
-                    v = ",".join(v)
-                cmd_args.extend(["--extractor-args", f"{ex_key}:{k}={v}"])
+    for ex_key, ex_val in extractor_args.items():
+        for k, v in ex_val.items():
+            if isinstance(v, list):
+                v = ",".join(v)
+            extra_args.extend(["--extractor-args", f"{ex_key}:{k}={v}"])
+    return extra_args
 
 
 def download_video(
@@ -101,7 +101,7 @@ def download_video(
             ]
         )
 
-    apply_gist_config(cmd)
+    cmd.extend(get_gist_config_args())
 
     if not playlist:
         idx = get_playlist_index(url)
@@ -127,7 +127,7 @@ def download_video(
         errors="replace",
     )
 
-    downloaded_files = []
+    downloaded_files: set[Path] = set()
     current_file = None
 
     for line in iter(process.stdout.readline, ""):
@@ -148,20 +148,20 @@ def download_video(
         dest_match = dest_regex.search(line)
         if dest_match:
             current_file = dest_match.group(1)
-            downloaded_files.append(Path(current_file).resolve())
+            downloaded_files.add(Path(current_file).resolve())
             continue
 
         fin_match = finished_regex.search(line)
         if fin_match:
             current_file = fin_match.group(1)
-            downloaded_files.append(Path(current_file).resolve())
+            downloaded_files.add(Path(current_file).resolve())
             hook_callback({"status": "finished", "filename": current_file})
             continue
 
         merge_match = merged_regex.search(line)
         if merge_match:
             current_file = merge_match.group(1)
-            downloaded_files.append(Path(current_file).resolve())
+            downloaded_files.add(Path(current_file).resolve())
             hook_callback({"status": "finished", "filename": current_file})
             continue
 
@@ -170,16 +170,15 @@ def download_video(
 
     process.wait()
 
-    if process.returncode != 0 and not downloaded_files:
+    result = [f for f in downloaded_files if f.exists()]
+
+    if process.returncode != 0 and not result:
         raise ValueError(f"Download failed with error code {process.returncode}")
 
-    # Remove duplicates from list of files
-    downloaded_files = list(set([f for f in downloaded_files if f.exists()]))
-
-    if not downloaded_files:
+    if not result:
         raise ValueError("No valid videos found")
 
-    return downloaded_files
+    return result
 
 
 class DownloadThread(QThread):

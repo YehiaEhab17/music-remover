@@ -111,6 +111,8 @@ class MyWindow(QMainWindow):
         self._error_count = 0
         self._total_files = 0
         self._summary_shown = True  # cancel swallows summary
+        self._processing_source = "file"
+        self._overall_start = None
 
         clear_temp_dir(max_age_seconds=24 * 60 * 60)
 
@@ -263,12 +265,7 @@ class MyWindow(QMainWindow):
         )
 
         self.download_thread.output.connect(self._on_download_done)
-        self.download_thread.progress_percent.connect(
-            lambda value: self.ui.progress_bar.setValue(int(value))
-        )
-        self.download_thread.progress.connect(
-            lambda msg, msg_type: self.message_handler(msg, msg_type)
-        )
+        self._connect_progress_signals(self.download_thread)
 
         self.download_thread.start()
 
@@ -316,17 +313,12 @@ class MyWindow(QMainWindow):
                 cpu_threads=self.settings["cpu_threads"],
                 retry_failed_chunks=self.settings["retry_failed_chunks"],
                 benchmark_recorder=benchmark_recorder,
-                source_type=getattr(self, "_processing_source", "file"),
-                overall_start=getattr(self, "_overall_start", None),
+                source_type=self._processing_source,
+                overall_start=self._overall_start,
             )
 
             self.music_remover_thread.completed.connect(self._on_file_completed)
-            self.music_remover_thread.progress_percent.connect(
-                lambda value: self.ui.progress_bar.setValue(int(value))
-            )
-            self.music_remover_thread.progress.connect(
-                lambda msg, msg_type: self.message_handler(msg, msg_type)
-            )
+            self._connect_progress_signals(self.music_remover_thread)
             self.music_remover_thread.start()
 
         except StopIteration:
@@ -376,6 +368,15 @@ class MyWindow(QMainWindow):
         self.message_handler(
             f"Done — {self._processed_count} video{'s' if self._processed_count != 1 else ''} processed{errors}",
             MessageType.PROGRESS,
+        )
+
+    def _connect_progress_signals(self, thread) -> None:
+        """Connect a thread's progress_percent and progress signals to the UI."""
+        thread.progress_percent.connect(
+            lambda value: self.ui.progress_bar.setValue(int(value))
+        )
+        thread.progress.connect(
+            lambda msg, msg_type: self.message_handler(msg, msg_type)
         )
 
     def set_input_enabled(self, status: bool) -> None:

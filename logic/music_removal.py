@@ -2,6 +2,7 @@ import gc
 import os
 import re
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -221,19 +222,22 @@ class MusicRemoverThread(QThread):
             self._benchmark_recorder.set_phase_time("processing", process_elapsed)
             self._benchmark_recorder.set_file_size("clean_audio", self.final_audio_path)
 
-    def _process_one_chunk(self, idx: int, chunk_path: Path) -> tuple[int, Path, list]:
+    def _process_one_chunk(
+        self, idx: int, chunk_path: Path, separator: Separator | None = None
+    ) -> tuple[int, Path, list]:
         """Process a single audio chunk through the separator."""
         if not chunk_path.exists():
             raise FileNotFoundError(
                 f"Chunk {idx + 1} file missing before separation: {chunk_path}"
             )
-        sep = self._make_separator()
+        sep = separator or self._make_separator()
         try:
             output = list(sep.separate(str(chunk_path)))
         except Exception as e:
             raise RuntimeError(f"Separator failed for chunk {idx + 1}: {e}") from e
         finally:
-            del sep
+            if separator is None:
+                del sep
         if len(output) < 2:
             raise RuntimeError(
                 f"Chunk {idx + 1}: separator returned {len(output)} outputs (expected 2). "
@@ -253,15 +257,23 @@ class MusicRemoverThread(QThread):
         errors: list[tuple[int, Exception]] = []
 
         if max_workers <= 1:
-            for i, (idx, chunk_path) in enumerate(zip(chunk_indices, chunk_paths)):
-                try:
-                    _, _, output = self._process_one_chunk(idx, chunk_path)
-                    processed[idx] = self.temp_dir / Path(output[1])
-                    chunk_path.unlink(missing_ok=True)
-                except Exception as e:
-                    errors.append((idx, e))
-                    self.progress.emit(f"Chunk {idx + 1} Error: {e}", MessageType.ERROR)
-                self.progress_percent.emit(int((i + 1) / total_for_progress * 100))
+            sep = self._make_separator()
+            try:
+                for i, (idx, chunk_path) in enumerate(zip(chunk_indices, chunk_paths)):
+                    try:
+                        _, _, output = self._process_one_chunk(
+                            idx, chunk_path, separator=sep
+                        )
+                        processed[idx] = self.temp_dir / Path(output[1])
+                        chunk_path.unlink(missing_ok=True)
+                    except Exception as e:
+                        errors.append((idx, e))
+                        self.progress.emit(
+                            f"Chunk {idx + 1} Error: {e}", MessageType.ERROR
+                        )
+                    self.progress_percent.emit(int((i + 1) / total_for_progress * 100))
+            finally:
+                del sep
         else:
             old_omp = os.environ.get("OMP_NUM_THREADS")
             old_ort = os.environ.get("ORT_INTRA_OP_NUM_THREADS")
@@ -270,9 +282,21 @@ class MusicRemoverThread(QThread):
             os.environ["ORT_INTRA_OP_NUM_THREADS"] = "1"
             torch.set_num_threads(1)
             try:
+                thread_local = threading.local()
+
+                def _get_thread_separator():
+                    if not hasattr(thread_local, "sep"):
+                        thread_local.sep = self._make_separator()
+                    return thread_local.sep
+
+                def _process_chunk(idx, ch):
+                    return self._process_one_chunk(
+                        idx, ch, separator=_get_thread_separator()
+                    )
+
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     futures = {
-                        executor.submit(self._process_one_chunk, idx, ch): idx
+                        executor.submit(_process_chunk, idx, ch): idx
                         for idx, ch in zip(chunk_indices, chunk_paths)
                     }
                     completed_count = 0
