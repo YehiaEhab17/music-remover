@@ -4,7 +4,6 @@ from enum import Enum
 
 ROOT = Path(__file__).parent.resolve()
 
-# YOUTUBE_CLIENTS: list[str] = ["android_sdkless", "web"]
 YOUTUBE_CLIENTS: list[str] = ["default", "-web_safari"]
 YOUTUBE_PLAYER_JS_VERSION: list[str] = ["actual"]
 GIST_CONFIG_URL: str = (
@@ -19,14 +18,16 @@ FFMPEG_BINARY_PATH: Path = (
 )
 DEFAULT_MODEL: str = "UVR-MDX-NET-Voc_FT.onnx"
 
-QUALITY_SETTINGS = {
-    "144p": "bv*[height<=144]+ba/b",
-    "240p": "bv*[height<=240]+ba/b",
-    "360p": "bv*[height<=360]+ba/b",
-    "480p": "bv*[height<=480]+ba/b",
-    "720p": "bv*[height<=720]+ba/b",
-    "1080p": "bv*[height<=1080]+ba/b",
+CHUNKING = {
+    "threshold_mb": 50,
+    "context_secs": 3,
 }
+
+QUALITY_LEVELS = [144, 240, 360, 480, 720, 1080]
+
+QUALITY_SETTINGS = {f"{p}p": f"bv*[height<={p}]+ba/b" for p in QUALITY_LEVELS}
+
+QUALITY_INDEX = {f"{p}p": i for i, p in enumerate(QUALITY_LEVELS)}
 
 
 AUDIO_SETTINGS = {
@@ -65,3 +66,12 @@ class MessageType(Enum):
     ERROR = "ERROR"
     DEBUG = "DEBUG"
     PROGRESS = "PROGRESS"
+
+
+COLORS = {
+    MessageType.INFO.value: "#2196F3",
+    MessageType.WARNING.value: "#FF9800",
+    MessageType.ERROR.value: "#F44336",
+    MessageType.PROGRESS.value: "#4CAF50",
+    MessageType.DEBUG.value: "#9E9E9E",
+}

@@ -1,11 +1,9 @@
+import time
 from typing import Callable
 from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 import subprocess
 import re
-import shutil
-import tempfile
-import json
 
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtBoundSignal
 
@@ -77,6 +75,8 @@ def download_video(
         str(ytdlp_bin),
         "--newline",
         "--ignore-errors",
+        "--no-overwrites",
+        "--continue",
         "--format",
         format_string,
         "--merge-output-format",
@@ -89,10 +89,6 @@ def download_video(
         "en,ar,fr",
         "--embed-subs",
     ]
-
-    cookies_path = Path("/home/Yehia/Downloads/cookies.txt")
-    if cookies_path.exists():
-        cmd.extend(["--cookies", str(cookies_path)])
 
     # Instead of default clients, we load them remotely or use fallback
     if YOUTUBE_CLIENTS and YOUTUBE_PLAYER_JS_VERSION:
@@ -203,6 +199,8 @@ class DownloadThread(QThread):
         self.user_output = user_output
 
     def run(self) -> None:
+        start = time.monotonic()
+
         def hook(d):  # hooks to yt-dlp to get status updates, d is a dictionary
             if d["status"] == "downloading":
                 percent = d.get("percent", 0.0)
@@ -226,12 +224,14 @@ class DownloadThread(QThread):
                 hook,
                 self.progress,
             )
+            elapsed = time.monotonic() - start
+            first = file_paths[0] if file_paths else None
+            title = first.stem if first else self.url
             self.progress.emit(
-                f"Finished downloading: {self.url}", MessageType.PROGRESS
+                f"Downloaded: {title} ({elapsed:.1f}s)", MessageType.PROGRESS
             )
 
-            if self.remove:
-                self.output.emit(file_paths)
+            self.output.emit(file_paths)
 
         except ValueError as e:
             self.progress.emit(str(e), MessageType.ERROR)

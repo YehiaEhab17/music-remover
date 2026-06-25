@@ -212,6 +212,8 @@ __marimo__/
 .binaries/*
 !.binaries/ffmpeg_placeholder
 .models/*.onnx
+GUI/.models/*.onnx
+GUI/.models/*.json
 misc/AGENTS.md
 *.mp4
 *.mp3
