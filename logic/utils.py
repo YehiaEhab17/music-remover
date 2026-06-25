@@ -6,8 +6,7 @@ from config import GENERIC_ERROR_MESSAGE, ERROR_MESSAGES
 
 
 def get_temp_path() -> Path:
-    # Use the user's home directory for large temp files so we don't exhaust the RAM disk (/tmp)
-    temp_dir = Path.home() / ".music_remover_temp"
+    temp_dir = Path.home() / ".local" / "share" / "MusicRemover"
     temp_dir.mkdir(parents=True, exist_ok=True)
     return temp_dir
 

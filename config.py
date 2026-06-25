@@ -19,6 +19,11 @@ FFMPEG_BINARY_PATH: Path = (
 )
 DEFAULT_MODEL: str = "UVR-MDX-NET-Voc_FT.onnx"
 
+CHUNKING = {
+    "threshold_mb": 50,
+    "context_secs": 3,
+}
+
 QUALITY_SETTINGS = {
     "144p": "bv*[height<=144]+ba/b",
     "240p": "bv*[height<=240]+ba/b",

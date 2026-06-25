@@ -10,9 +10,9 @@
     <height>471</height>
    </rect>
   </property>
-  <property name="windowTitle">
-   <string>MainWindow</string>
-  </property>
+   <property name="windowTitle">
+    <string>Music Remover</string>
+   </property>
   <widget class="QWidget" name="centralwidget">
    <widget class="QLabel" name="label">
     <property name="geometry">
@@ -104,19 +104,48 @@
      </rect>
     </property>
    </widget>
-   <widget class="QPushButton" name="language_button_2">
-    <property name="geometry">
-     <rect>
-      <x>20</x>
-      <y>390</y>
-      <width>86</width>
-      <height>26</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Help</string>
-    </property>
-   </widget>
+    <widget class="QPushButton" name="language_button_2">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>390</y>
+       <width>86</width>
+       <height>26</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Help</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="settings_button">
+     <property name="geometry">
+      <rect>
+       <x>120</x>
+       <y>390</y>
+       <width>86</width>
+       <height>26</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Settings</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="cancel_button">
+     <property name="geometry">
+      <rect>
+       <x>220</x>
+       <y>390</y>
+       <width>86</width>
+       <height>26</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Cancel</string>
+     </property>
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+    </widget>
    <widget class="QLabel" name="label_2">
     <property name="geometry">
      <rect>
@@ -151,19 +180,32 @@
      <bool>true</bool>
     </property>
    </widget>
-   <widget class="QPushButton" name="output_directory_button">
-    <property name="geometry">
-     <rect>
-      <x>20</x>
-      <y>220</y>
-      <width>86</width>
-      <height>26</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Change</string>
-    </property>
-   </widget>
+    <widget class="QPushButton" name="output_directory_button">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>220</y>
+       <width>86</width>
+       <height>26</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Change</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="open_output_button">
+     <property name="geometry">
+      <rect>
+       <x>115</x>
+       <y>220</y>
+       <width>86</width>
+       <height>26</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Open Folder</string>
+     </property>
+    </widget>
    <widget class="QLabel" name="label_3">
     <property name="geometry">
      <rect>
