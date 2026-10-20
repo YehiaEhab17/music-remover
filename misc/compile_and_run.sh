@@ -10,15 +10,15 @@ rm -rf dist build app.spec
 # 2. Run PyInstaller as a module through the venv python
 # This ensures it inherits the venv's site-packages and metadata
 $V_PY -m PyInstaller \
-    --onefile \
+    --onedir \
     --noupx \
     --add-binary "../.binaries/ffmpeg:.binaries" \
     --add-data "../.models/*:.models" \
     --collect-all torch \
     --collect-all audio_separator \
+    --collect-all nvidia \
     --copy-metadata torch \
     --copy-metadata audio_separator \
     ../app.py
 
-# 3. Run the resulting binary
-./dist/app
+echo "Build complete. Binary at: ./dist/app/app"
